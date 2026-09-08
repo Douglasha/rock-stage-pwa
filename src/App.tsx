@@ -10,12 +10,6 @@ import type { ActiveStageSong, Setlist, AppViewMode, MemberProfile } from './typ
 import { Flame, RefreshCw, WifiOff } from 'lucide-react';
 
 export function App() {
-  const [viewMode, setViewMode] = useState<AppViewMode>('stage');
-  const [loading, setLoading] = useState(true);
-  const [setlist, setSetlist] = useState<Setlist | null>(null);
-  const [songs, setSongs] = useState<ActiveStageSong[]>([]);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-
   const {
     currentProfile,
     loginWithSupabase,
@@ -26,6 +20,14 @@ export function App() {
     authError,
     isConfigured: isSupabaseConfigured
   } = useAuth();
+
+  const [viewMode, setViewMode] = useState<AppViewMode>(() => {
+    return currentProfile ? 'manager' : 'login';
+  });
+  const [loading, setLoading] = useState(true);
+  const [setlist, setSetlist] = useState<Setlist | null>(null);
+  const [songs, setSongs] = useState<ActiveStageSong[]>([]);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -68,18 +70,11 @@ export function App() {
     loadData();
   }, [loadData]);
 
-  // Se não houver perfil salvo e o usuário não estiver já no modo palco direto, exibe tela de login/acesso
-  useEffect(() => {
-    const hasVisited = localStorage.getItem('rock_stage_has_visited');
-    if (!hasVisited && !currentProfile) {
-      setViewMode('login');
-      localStorage.setItem('rock_stage_has_visited', 'true');
-    }
-  }, [currentProfile]);
-
   const handleLoginSuccess = (profile: MemberProfile) => {
     selectQuickProfile(profile);
-    setViewMode('stage');
+    if (profile.status === 'approved') {
+      setViewMode('manager');
+    }
   };
 
   const handleEnterStage = async (setlistId?: string) => {
@@ -89,6 +84,11 @@ export function App() {
       await loadData();
     }
     setViewMode('stage');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    setViewMode('login');
   };
 
   if (loading) {
@@ -105,23 +105,25 @@ export function App() {
     );
   }
 
-  // 1. TELA DE AGUARDANDO APROVAÇÃO (SE USUÁRIO FOR PENDENTE OU BLOQUEADO)
-  if (currentProfile && (currentProfile.status === 'pending' || currentProfile.status === 'blocked')) {
-    return (
-      <PendingApprovalScreen
-        currentProfile={currentProfile}
-        onRefreshStatus={refreshProfile}
-        onLogout={logout}
-      />
-    );
-  }
-
-  // 2. TELA DE LOGIN / ACESSO RÁPIDO DO INTEGRANTE
-  if (viewMode === 'login') {
+  // 1. SE NÃO HOUVER USUÁRIO LOGADO OU O MODO FOR LOGIN: EXIBE TELA DE LOGIN
+  if (!currentProfile || viewMode === 'login') {
     return (
       <LoginScreen
         onLoginSuccess={handleLoginSuccess}
-        onEnterStageDirectly={() => setViewMode('stage')}
+        onEnterStageDirectly={() => {
+          const guestProfile: MemberProfile = {
+            id: `guest-${Date.now()}`,
+            band_id: 'b001-rock-band',
+            name: 'Convidado de Palco',
+            email: 'convidado@banda.com',
+            instrument: 'general',
+            role: 'member',
+            status: 'approved',
+            created_at: new Date().toISOString()
+          };
+          selectQuickProfile(guestProfile);
+          setViewMode('stage');
+        }}
         loginWithSupabase={loginWithSupabase}
         registerWithSupabase={registerWithSupabase}
         authError={authError}
@@ -130,19 +132,30 @@ export function App() {
     );
   }
 
-  // 2. PAINEL DE GERENCIAMENTO (SETLISTS, BIBLIOTECA, MÚSICAS)
+  // 2. SE USUÁRIO ESTIVER PENDENTE DE APROVAÇÃO OU BLOQUEADO: TELA DE ESPERA
+  if (currentProfile.status === 'pending' || currentProfile.status === 'blocked') {
+    return (
+      <PendingApprovalScreen
+        currentProfile={currentProfile}
+        onRefreshStatus={refreshProfile}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // 3. PAINEL DE GERENCIAMENTO (SETLISTS, BIBLIOTECA, MÚSICAS, PERMISSÕES)
   if (viewMode === 'manager') {
     return (
       <ManagerLayout
         currentProfile={currentProfile}
         onEnterStage={handleEnterStage}
-        onLogout={logout}
-        onChangeProfile={() => setViewMode('login')}
+        onLogout={handleLogout}
+        onChangeProfile={handleLogout}
       />
     );
   }
 
-  // 3. SE NÃO HOUVER MÚSICAS NO SETLIST
+  // 4. SE NÃO HOUVER MÚSICAS NO SETLIST
   if (songs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white p-6 text-center select-none font-mono">
@@ -174,7 +187,7 @@ export function App() {
     );
   }
 
-  // 4. MODO PALCO (OLED #000000, WAKE LOCK, CONTROLES DE PÉ E TOUCH)
+  // 5. MODO PALCO (OLED #000000, WAKE LOCK, CONTROLES DE PÉ E TOUCH)
   return (
     <div className="relative h-screen w-screen bg-black overflow-hidden">
       {!isOnline && (

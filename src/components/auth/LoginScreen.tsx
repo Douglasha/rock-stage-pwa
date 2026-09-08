@@ -38,7 +38,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   authError,
   isSupabaseConfigured
 }) => {
-  const [tab, setTab] = useState<'quick' | 'login' | 'register'>('quick');
+  const [tab, setTab] = useState<'login' | 'register' | 'quick'>('login');
   const [profiles, setProfiles] = useState<MemberProfile[]>([]);
 
   // Form states
@@ -89,7 +89,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const success = await loginWithSupabase(email, password);
     setSubmitting(false);
     if (success) {
-      const saved = await db.profiles.where('email').equals(email).first();
+      const cleanEmail = email.trim().toLowerCase();
+      const saved = await db.profiles.filter((p) => p.email.toLowerCase() === cleanEmail).first();
       if (saved) onLoginSuccess(saved);
     }
   };
@@ -101,7 +102,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const success = await registerWithSupabase(name, email, password, instrument, bandName);
     setSubmitting(false);
     if (success) {
-      const saved = await db.profiles.where('email').equals(email).first();
+      const cleanEmail = email.trim().toLowerCase();
+      const saved = await db.profiles.filter((p) => p.email.toLowerCase() === cleanEmail).first();
       if (saved) onLoginSuccess(saved);
     }
   };
@@ -127,12 +129,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             {isSupabaseConfigured ? (
               <>
                 <Wifi className="w-3 h-3 text-emerald-400" />
-                <span className="text-emerald-400 font-bold">Supabase Conectado</span>
+                <span className="text-emerald-400 font-bold">Supabase Online</span>
               </>
             ) : (
               <>
                 <WifiOff className="w-3 h-3 text-yellow-400" />
-                <span className="text-zinc-400">Modo 100% Offline (Dexie.js)</span>
+                <span className="text-zinc-400">Armazenamento Local (Dexie)</span>
               </>
             )}
           </div>
@@ -140,16 +142,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         {/* Abas de Navegação */}
         <div className="flex border-b border-zinc-800 text-xs font-bold uppercase tracking-wider">
-          <button
-            onClick={() => setTab('quick')}
-            className={`flex-1 py-3 text-center border-b-2 transition ${
-              tab === 'quick'
-                ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5'
-                : 'border-transparent text-zinc-400 hover:text-white'
-            }`}
-          >
-            Acesso Palco
-          </button>
           <button
             onClick={() => setTab('login')}
             className={`flex-1 py-3 text-center border-b-2 transition ${
@@ -170,6 +162,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           >
             Cadastrar
           </button>
+          <button
+            onClick={() => setTab('quick')}
+            className={`flex-1 py-3 text-center border-b-2 transition ${
+              tab === 'quick'
+                ? 'border-yellow-400 text-yellow-400 bg-yellow-400/5'
+                : 'border-transparent text-zinc-400 hover:text-white'
+            }`}
+          >
+            Acesso Rápido
+          </button>
         </div>
 
         {/* Mensagem de Erro se houver */}
@@ -182,59 +184,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         {/* Conteúdo das Abas */}
         <div className="p-6">
-          {/* 1. ABA: ACESSO RÁPIDO DE PALCO (OFFLINE) */}
-          {tab === 'quick' && (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wide">
-                  Quem está usando este aparelho no show?
-                </h3>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  Selecione seu perfil para carregar automaticamente as anotações do seu instrumento:
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2.5 max-h-60 overflow-y-auto pr-1">
-                {profiles.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleQuickSelect(p)}
-                    className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 hover:border-yellow-500/60 transition active:scale-[0.98] text-left group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-black border border-zinc-800 group-hover:border-zinc-700">
-                        {instrumentIcons[p.instrument] || <UserCheck className="w-5 h-5 text-yellow-400" />}
-                      </div>
-                      <div>
-                        <div className="font-bold text-sm text-white group-hover:text-yellow-400 transition">
-                          {p.name}
-                        </div>
-                        <div className="text-[11px] text-zinc-400 font-mono">
-                          {instrumentLabels[p.instrument] || p.instrument}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-xs font-mono font-bold text-yellow-400 group-hover:translate-x-0.5 transition">
-                      Entrar →
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Acesso rápido sem perfil */}
-              <div className="pt-2 border-t border-zinc-800/80">
-                <button
-                  onClick={onEnterStageDirectly}
-                  className="w-full py-3 px-4 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider rounded-xl shadow-lg shadow-yellow-400/20 active:scale-95 transition flex items-center justify-center gap-2"
-                >
-                  <Zap className="w-4 h-4 fill-current" />
-                  Ir Direto para o Modo Palco ⚡
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 2. ABA: LOGIN SUPABASE */}
+          {/* 1. ABA: LOGIN */}
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -245,7 +195,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ex: vocalista@rockband.com"
+                  placeholder="ex: vocalista@banda.com ou douglas@banda.com"
                   className="w-full px-3.5 py-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400 text-sm font-sans"
                   required
                 />
@@ -271,12 +221,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider rounded-xl shadow-lg shadow-yellow-400/20 active:scale-95 transition flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <LogIn className="w-4 h-4" />
-                {submitting ? 'Entrando...' : 'Entrar com Supabase'}
+                {submitting ? 'Entrando...' : 'Entrar no Aplicativo'}
               </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTab('register')}
+                  className="text-xs text-zinc-400 hover:text-yellow-400 transition"
+                >
+                  Novo na banda? <strong className="text-yellow-400 underline">Crie sua conta aqui</strong>
+                </button>
+              </div>
             </form>
           )}
 
-          {/* 3. ABA: CADASTRAR INTEGRANTE */}
+          {/* 2. ABA: CADASTRAR INTEGRANTE */}
           {tab === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
               <div>
@@ -287,7 +247,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="ex: Slash, Bruce Dickinson"
+                  placeholder="ex: Douglas, Slash, Bruce"
                   className="w-full px-3.5 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400 text-sm"
                   required
                 />
@@ -363,7 +323,72 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 <UserPlus className="w-4 h-4" />
                 {submitting ? 'Cadastrando...' : 'Criar Perfil na Banda'}
               </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setTab('login')}
+                  className="text-xs text-zinc-400 hover:text-yellow-400 transition"
+                >
+                  Já tem uma conta? <strong className="text-yellow-400 underline">Faça login</strong>
+                </button>
+              </div>
             </form>
+          )}
+
+          {/* 3. ABA: ACESSO RÁPIDO DE PALCO (OFFLINE) */}
+          {tab === 'quick' && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wide">
+                  Selecione seu perfil pré-configurado:
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Ideal para passagens de som rápidas ou celulares de palco sem conexão à internet:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                {profiles.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleQuickSelect(p)}
+                    className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 hover:border-yellow-500/60 transition active:scale-[0.98] text-left group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-black border border-zinc-800 group-hover:border-zinc-700">
+                        {instrumentIcons[p.instrument] || <UserCheck className="w-5 h-5 text-yellow-400" />}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-white group-hover:text-yellow-400 transition">
+                          {p.name}
+                        </div>
+                        <div className="text-[11px] text-zinc-400 font-mono">
+                          {instrumentLabels[p.instrument] || p.instrument} •{' '}
+                          <span className={p.role === 'admin' ? 'text-yellow-400 font-bold' : ''}>
+                            {p.role === 'admin' ? 'ADMIN' : 'MEMBRO'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono font-bold text-yellow-400 group-hover:translate-x-0.5 transition">
+                      Entrar →
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Acesso rápido sem perfil */}
+              <div className="pt-2 border-t border-zinc-800/80">
+                <button
+                  onClick={onEnterStageDirectly}
+                  className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded-xl active:scale-95 transition flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 text-yellow-400" />
+                  Entrar como Convidado de Palco ⚡
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
