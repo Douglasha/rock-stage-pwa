@@ -60,3 +60,25 @@ export interface ActiveStageSong {
   totalInSet: number;
   currentIndex: number;
 }
+
+export type InstrumentType =
+  | 'guitar_1'
+  | 'guitar_2'
+  | 'bass'
+  | 'drums'
+  | 'keys'
+  | 'vocals'
+  | 'general';
+
+export interface MemberProfile {
+  id: string;
+  band_id: string;
+  name: string;
+  email: string;
+  instrument: InstrumentType;
+  role: 'leader' | 'member';
+  created_at: string;
+}
+
+export type AppViewMode = 'stage' | 'manager' | 'login';
+

@@ -14,12 +14,14 @@ interface StageViewProps {
   songs: ActiveStageSong[];
   initialSongIndex?: number;
   setlist?: Setlist | null;
+  onExitStage?: () => void;
 }
 
 export const StageView: React.FC<StageViewProps> = ({
   songs,
   initialSongIndex = 0,
-  setlist
+  setlist,
+  onExitStage
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialSongIndex);
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
@@ -129,6 +131,7 @@ export const StageView: React.FC<StageViewProps> = ({
         isWakeLocked={isWakeLocked}
         onOpenSetlist={() => setIsSetlistOpen(true)}
         onOpenNotes={() => setIsNotesOpen(true)}
+        onExitStage={onExitStage}
       />
 
       {/* 2. Visualizador de Letras com Parser de Blocos */}

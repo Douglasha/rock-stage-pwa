@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, ShieldAlert, ListMusic, FileText, Music2 } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, ListMusic, FileText, Music2, LayoutDashboard } from 'lucide-react';
 import type { ActiveStageSong } from '../../types';
 
 interface StageHeaderProps {
@@ -8,6 +8,7 @@ interface StageHeaderProps {
   isWakeLocked: boolean;
   onOpenSetlist: () => void;
   onOpenNotes: () => void;
+  onExitStage?: () => void;
 }
 
 export const StageHeader: React.FC<StageHeaderProps> = ({
@@ -16,6 +17,7 @@ export const StageHeader: React.FC<StageHeaderProps> = ({
   isWakeLocked,
   onOpenSetlist,
   onOpenNotes,
+  onExitStage,
 }) => {
   const { song, item, effectiveKey, currentIndex, totalInSet, notes } = currentSong;
   const hasNotes = notes && notes.length > 0;
@@ -81,6 +83,18 @@ export const StageHeader: React.FC<StageHeaderProps> = ({
             <ListMusic className="w-3.5 h-3.5 text-yellow-400" />
             <span className="hidden sm:inline">SETLIST</span>
           </button>
+
+          {/* Botão Sair do Modo Palco / Ir para o Gerenciador */}
+          {onExitStage && (
+            <button
+              onClick={onExitStage}
+              className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white font-sans text-xs font-bold px-2.5 py-1 rounded border border-zinc-800 transition active:scale-95"
+              title="Voltar ao Painel do Gerenciador"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-zinc-400" />
+              <span className="hidden md:inline">PAINEL</span>
+            </button>
+          )}
         </div>
       </div>
 

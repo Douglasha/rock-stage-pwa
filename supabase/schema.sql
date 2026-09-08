@@ -60,6 +60,17 @@ CREATE TABLE IF NOT EXISTS song_notes (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+-- 6. PROFILES (Band Members)
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    band_id UUID REFERENCES bands(id) ON DELETE SET NULL,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    instrument VARCHAR(50) DEFAULT 'guitar_1', -- 'guitar_1', 'guitar_2', 'bass', 'drums', 'keys', 'vocals', 'general'
+    role VARCHAR(50) DEFAULT 'member',        -- 'leader', 'member'
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
 -- ==============================================================================
 -- INDEXES FOR STAGE QUERY SPEED
 -- ==============================================================================
@@ -67,6 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_songs_band_id ON songs(band_id);
 CREATE INDEX IF NOT EXISTS idx_setlists_band_id_active ON setlists(band_id, is_active);
 CREATE INDEX IF NOT EXISTS idx_setlist_items_setlist_pos ON setlist_items(setlist_id, position ASC);
 CREATE INDEX IF NOT EXISTS idx_song_notes_song_instrument ON song_notes(song_id, instrument);
+CREATE INDEX IF NOT EXISTS idx_profiles_band_id ON profiles(band_id);
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -76,6 +88,7 @@ ALTER TABLE songs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE setlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE setlist_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE song_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 -- Allow authenticated read/write (customizable for production band membership)
 CREATE POLICY "Allow authenticated read on bands" ON bands FOR SELECT USING (true);
@@ -83,3 +96,6 @@ CREATE POLICY "Allow authenticated read on songs" ON songs FOR SELECT USING (tru
 CREATE POLICY "Allow authenticated read on setlists" ON setlists FOR SELECT USING (true);
 CREATE POLICY "Allow authenticated read on setlist_items" ON setlist_items FOR SELECT USING (true);
 CREATE POLICY "Allow authenticated read on song_notes" ON song_notes FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated read on profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Allow authenticated update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+

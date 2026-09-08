@@ -8,12 +8,13 @@ export async function seedDatabaseIfNeeded(force = false) {
   }
 
   // Clear existing
-  await db.transaction('rw', [db.bands, db.songs, db.setlists, db.setlist_items, db.song_notes], async () => {
+  await db.transaction('rw', [db.bands, db.songs, db.setlists, db.setlist_items, db.song_notes, db.profiles], async () => {
     await db.bands.clear();
     await db.songs.clear();
     await db.setlists.clear();
     await db.setlist_items.clear();
     await db.song_notes.clear();
+    await db.profiles.clear();
 
     const bandId = 'b001-rock-band';
     const band: Band = {
@@ -22,6 +23,46 @@ export async function seedDatabaseIfNeeded(force = false) {
       created_at: new Date().toISOString()
     };
     await db.bands.add(band);
+
+    // Membros padrão para teste imediato de acesso no palco
+    await db.profiles.bulkAdd([
+      {
+        id: 'member-01',
+        band_id: bandId,
+        name: 'Douglas (Voz / Guitarra)',
+        email: 'douglas@banda.com',
+        instrument: 'vocals',
+        role: 'leader',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'member-02',
+        band_id: bandId,
+        name: 'Carlos (Guitarra Solo)',
+        email: 'carlos@banda.com',
+        instrument: 'guitar_1',
+        role: 'member',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'member-03',
+        band_id: bandId,
+        name: 'Bruno (Baixo)',
+        email: 'bruno@banda.com',
+        instrument: 'bass',
+        role: 'member',
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'member-04',
+        band_id: bandId,
+        name: 'Marcos (Bateria)',
+        email: 'marcos@banda.com',
+        instrument: 'drums',
+        role: 'member',
+        created_at: new Date().toISOString()
+      }
+    ]);
 
     const setlistId = 's001-tour-setlist';
     const setlist: Setlist = {
