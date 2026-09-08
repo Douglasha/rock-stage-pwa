@@ -16,6 +16,7 @@ export function App() {
     registerWithSupabase,
     selectQuickProfile,
     refreshProfile,
+    resetAllProfiles,
     logout,
     authError,
     isConfigured: isSupabaseConfigured
@@ -128,6 +129,7 @@ export function App() {
         registerWithSupabase={registerWithSupabase}
         authError={authError}
         isSupabaseConfigured={isSupabaseConfigured}
+        onResetAllUsers={resetAllProfiles}
       />
     );
   }

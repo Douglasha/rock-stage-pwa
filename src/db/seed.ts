@@ -2,6 +2,18 @@ import { db } from './database';
 import type { Band, Song, Setlist, SetlistItem, SongNote } from '../types';
 
 export async function seedDatabaseIfNeeded(force = false) {
+  // Limpa quaisquer perfis mock/dummy fictícios criados em versões anteriores
+  try {
+    const dummyProfiles = await db.profiles
+      .filter((p) => p.id.startsWith('member-') || p.email.includes('@banda.com'))
+      .toArray();
+    for (const d of dummyProfiles) {
+      await db.profiles.delete(d.id);
+    }
+  } catch (err) {
+    console.warn('Erro ao limpar perfis mock:', err);
+  }
+
   const songCount = await db.songs.count();
   if (songCount > 0 && !force) {
     return;
@@ -24,66 +36,8 @@ export async function seedDatabaseIfNeeded(force = false) {
     };
     await db.bands.add(band);
 
-    // Membros padrão para teste imediato de acesso no palco
-    await db.profiles.bulkAdd([
-      {
-        id: 'member-01',
-        band_id: bandId,
-        name: 'Douglas (Voz / Guitarra)',
-        email: 'douglas@banda.com',
-        instrument: 'vocals',
-        role: 'admin',
-        status: 'approved',
-        approved_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'member-02',
-        band_id: bandId,
-        name: 'Carlos (Guitarra Solo)',
-        email: 'carlos@banda.com',
-        instrument: 'guitar_1',
-        role: 'member',
-        status: 'approved',
-        approved_by: 'member-01',
-        approved_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'member-03',
-        band_id: bandId,
-        name: 'Bruno (Baixo)',
-        email: 'bruno@banda.com',
-        instrument: 'bass',
-        role: 'member',
-        status: 'approved',
-        approved_by: 'member-01',
-        approved_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'member-04',
-        band_id: bandId,
-        name: 'Marcos (Bateria)',
-        email: 'marcos@banda.com',
-        instrument: 'drums',
-        role: 'member',
-        status: 'approved',
-        approved_by: 'member-01',
-        approved_at: new Date().toISOString(),
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'member-05',
-        band_id: bandId,
-        name: 'Rodrigo (Teclado)',
-        email: 'rodrigo@banda.com',
-        instrument: 'keys',
-        role: 'member',
-        status: 'pending',
-        created_at: new Date().toISOString()
-      }
-    ]);
+    // Banco de perfis inicia 100% LIMPO para que o usuário ao se cadastrar seja o Primeiro Administrador real!
+    // Não inserimos nenhum membro fictício aqui.
 
     const setlistId = 's001-tour-setlist';
     const setlist: Setlist = {

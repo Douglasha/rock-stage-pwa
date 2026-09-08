@@ -133,12 +133,16 @@ export function useAuth() {
         .first();
 
       if (localUser) {
+        if (localUser.password && localUser.password !== pass) {
+          setAuthError('Senha incorreta. Verifique os dados digitados.');
+          return false;
+        }
         setCurrentProfile(localUser);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(localUser));
         return true;
       }
 
-      setAuthError(`E-mail "${cleanEmail}" não encontrado no banco local. Se você ainda não criou uma conta, cadastre-se na aba "Cadastrar".`);
+      setAuthError(`E-mail "${cleanEmail}" não encontrado no banco local. Cadastre-se na aba "Cadastrar".`);
       return false;
     } catch (err: any) {
       setAuthError(err.message || 'Erro ao realizar login');
@@ -225,6 +229,7 @@ export function useAuth() {
           band_id: 'b001-rock-band',
           name: name.trim(),
           email: cleanEmail,
+          password: pass,
           instrument,
           role,
           status,
@@ -260,6 +265,14 @@ export function useAuth() {
     }
   }, []);
 
+  // Limpa todos os perfis e zera para novo primeiro admin
+  const resetAllProfiles = useCallback(async () => {
+    await db.profiles.clear();
+    localStorage.removeItem(STORAGE_KEY);
+    setCurrentProfile(null);
+    setAuthError(null);
+  }, []);
+
   const isAdmin = currentProfile?.role === 'admin';
   const isApproved = currentProfile?.status === 'approved';
   const isPending = currentProfile?.status === 'pending';
@@ -279,6 +292,7 @@ export function useAuth() {
     loginWithSupabase,
     registerWithSupabase,
     refreshProfile,
+    resetAllProfiles,
     logout
   };
 }

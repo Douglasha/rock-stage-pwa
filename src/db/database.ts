@@ -250,3 +250,9 @@ export async function deleteUser(userId: string): Promise<void> {
   await db.profiles.delete(userId);
 }
 
+export async function resetAllUsers(): Promise<void> {
+  await db.profiles.clear();
+  localStorage.removeItem('rock_stage_active_profile');
+}
+
+

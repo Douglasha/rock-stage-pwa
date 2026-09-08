@@ -78,6 +78,7 @@ export interface MemberProfile {
   band_id: string;
   name: string;
   email: string;
+  password?: string;
   instrument: InstrumentType;
   role: UserRole;
   status: UserStatus;
