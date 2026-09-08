@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { SetlistManager } from './SetlistManager';
 import { SongLibrary } from './SongLibrary';
+import { UserManagement } from './UserManagement';
 import type { MemberProfile, InstrumentType } from '../../types';
 
 interface ManagerLayoutProps {
@@ -28,7 +29,8 @@ export const ManagerLayout: React.FC<ManagerLayoutProps> = ({
   onLogout,
   onChangeProfile
 }) => {
-  const [activeTab, setActiveTab] = useState<'setlists' | 'songs' | 'band'>('setlists');
+  const [activeTab, setActiveTab] = useState<'setlists' | 'songs' | 'users'>('setlists');
+  const isAdmin = currentProfile?.role === 'admin';
 
   const instrumentIcons: Record<InstrumentType, React.ReactNode> = {
     guitar_1: <Guitar className="w-4 h-4 text-yellow-400" />,
@@ -121,6 +123,21 @@ export const ManagerLayout: React.FC<ManagerLayoutProps> = ({
             <Library className="w-4 h-4" />
             <span>Biblioteca de Músicas</span>
           </button>
+
+          {/* Aba exclusiva para Administradores */}
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex items-center gap-2 py-3 border-b-2 transition ${
+                activeTab === 'users'
+                  ? 'border-yellow-400 text-yellow-400 font-black'
+                  : 'border-transparent text-yellow-500/80 hover:text-yellow-400'
+              }`}
+            >
+              <Users className="w-4 h-4 text-yellow-400" />
+              <span>Integrantes & Permissões</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -128,6 +145,7 @@ export const ManagerLayout: React.FC<ManagerLayoutProps> = ({
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6">
         {activeTab === 'setlists' && <SetlistManager onEnterStage={onEnterStage} />}
         {activeTab === 'songs' && <SongLibrary />}
+        {activeTab === 'users' && <UserManagement currentAdminId={currentProfile?.id || ''} />}
       </main>
     </div>
   );

@@ -60,16 +60,54 @@ CREATE TABLE IF NOT EXISTS song_notes (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- 6. PROFILES (Band Members)
+-- 6. PROFILES (Band Members & Permissions)
 CREATE TABLE IF NOT EXISTS profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     band_id UUID REFERENCES bands(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     instrument VARCHAR(50) DEFAULT 'guitar_1', -- 'guitar_1', 'guitar_2', 'bass', 'drums', 'keys', 'vocals', 'general'
-    role VARCHAR(50) DEFAULT 'member',        -- 'leader', 'member'
+    role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'blocked')),
+    approved_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+
+-- Trigger: O primeiro usuário da banda é automaticamente promovido a Admin Aprovado
+CREATE OR REPLACE FUNCTION handle_new_user_profile() RETURNS TRIGGER AS $$
+BEGIN
+    IF (SELECT count(*) FROM profiles) = 0 THEN
+        NEW.role := 'admin';
+        NEW.status := 'approved';
+        NEW.approved_at := NOW();
+    ELSE
+        IF NEW.role IS NULL THEN
+            NEW.role := 'member';
+        END IF;
+        IF NEW.status IS NULL THEN
+            NEW.status := 'pending';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_set_initial_admin ON profiles;
+CREATE TRIGGER trigger_set_initial_admin
+BEFORE INSERT ON profiles
+FOR EACH ROW
+EXECUTE FUNCTION handle_new_user_profile();
+
+-- Função auxiliar de verificação de Administrador
+CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM profiles
+        WHERE id = auth.uid() AND role = 'admin' AND status = 'approved'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ==============================================================================
 -- INDEXES FOR STAGE QUERY SPEED
@@ -79,6 +117,7 @@ CREATE INDEX IF NOT EXISTS idx_setlists_band_id_active ON setlists(band_id, is_a
 CREATE INDEX IF NOT EXISTS idx_setlist_items_setlist_pos ON setlist_items(setlist_id, position ASC);
 CREATE INDEX IF NOT EXISTS idx_song_notes_song_instrument ON song_notes(song_id, instrument);
 CREATE INDEX IF NOT EXISTS idx_profiles_band_id ON profiles(band_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_status ON profiles(status);
 
 -- ==============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -90,12 +129,30 @@ ALTER TABLE setlist_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE song_notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated read/write (customizable for production band membership)
-CREATE POLICY "Allow authenticated read on bands" ON bands FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read on songs" ON songs FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read on setlists" ON setlists FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read on setlist_items" ON setlist_items FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read on song_notes" ON song_notes FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated read on profiles" ON profiles FOR SELECT USING (true);
-CREATE POLICY "Allow authenticated update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+-- Músicas e Setlists: Apenas usuários autenticados com status APROVADO
+CREATE POLICY "Allow approved read on bands" ON bands FOR SELECT USING (true);
+CREATE POLICY "Allow approved read on songs" ON songs FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
+);
+CREATE POLICY "Allow approved read on setlists" ON setlists FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
+);
+CREATE POLICY "Allow approved read on setlist_items" ON setlist_items FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
+);
+CREATE POLICY "Allow approved read on song_notes" ON song_notes FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
+);
+
+-- Perfis: Todo usuário lê seu próprio perfil; Admins lêem todos e atualizam permissões
+CREATE POLICY "Allow read own profile or admin read all" ON profiles FOR SELECT USING (
+    auth.uid() = id OR is_admin()
+);
+CREATE POLICY "Allow update own profile info" ON profiles FOR UPDATE USING (
+    auth.uid() = id
+);
+CREATE POLICY "Allow admin manage all profiles" ON profiles FOR ALL USING (
+    is_admin()
+);
+
 

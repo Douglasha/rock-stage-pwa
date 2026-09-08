@@ -4,6 +4,7 @@ import { getActiveSetlist, getSetlistFullData, getSetlistById } from './db/datab
 import { StageView } from './components/stage/StageView';
 import { ManagerLayout } from './components/manager/ManagerLayout';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { PendingApprovalScreen } from './components/auth/PendingApprovalScreen';
 import { useAuth } from './hooks/useAuth';
 import type { ActiveStageSong, Setlist, AppViewMode, MemberProfile } from './types';
 import { Flame, RefreshCw, WifiOff } from 'lucide-react';
@@ -20,6 +21,7 @@ export function App() {
     loginWithSupabase,
     registerWithSupabase,
     selectQuickProfile,
+    refreshProfile,
     logout,
     authError,
     isConfigured: isSupabaseConfigured
@@ -103,7 +105,18 @@ export function App() {
     );
   }
 
-  // 1. TELA DE LOGIN / ACESSO RÁPIDO DO INTEGRANTE
+  // 1. TELA DE AGUARDANDO APROVAÇÃO (SE USUÁRIO FOR PENDENTE OU BLOQUEADO)
+  if (currentProfile && (currentProfile.status === 'pending' || currentProfile.status === 'blocked')) {
+    return (
+      <PendingApprovalScreen
+        currentProfile={currentProfile}
+        onRefreshStatus={refreshProfile}
+        onLogout={logout}
+      />
+    );
+  }
+
+  // 2. TELA DE LOGIN / ACESSO RÁPIDO DO INTEGRANTE
   if (viewMode === 'login') {
     return (
       <LoginScreen

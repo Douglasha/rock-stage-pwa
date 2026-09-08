@@ -32,7 +32,9 @@ export async function seedDatabaseIfNeeded(force = false) {
         name: 'Douglas (Voz / Guitarra)',
         email: 'douglas@banda.com',
         instrument: 'vocals',
-        role: 'leader',
+        role: 'admin',
+        status: 'approved',
+        approved_at: new Date().toISOString(),
         created_at: new Date().toISOString()
       },
       {
@@ -42,6 +44,9 @@ export async function seedDatabaseIfNeeded(force = false) {
         email: 'carlos@banda.com',
         instrument: 'guitar_1',
         role: 'member',
+        status: 'approved',
+        approved_by: 'member-01',
+        approved_at: new Date().toISOString(),
         created_at: new Date().toISOString()
       },
       {
@@ -51,6 +56,9 @@ export async function seedDatabaseIfNeeded(force = false) {
         email: 'bruno@banda.com',
         instrument: 'bass',
         role: 'member',
+        status: 'approved',
+        approved_by: 'member-01',
+        approved_at: new Date().toISOString(),
         created_at: new Date().toISOString()
       },
       {
@@ -60,6 +68,19 @@ export async function seedDatabaseIfNeeded(force = false) {
         email: 'marcos@banda.com',
         instrument: 'drums',
         role: 'member',
+        status: 'approved',
+        approved_by: 'member-01',
+        approved_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'member-05',
+        band_id: bandId,
+        name: 'Rodrigo (Teclado)',
+        email: 'rodrigo@banda.com',
+        instrument: 'keys',
+        role: 'member',
+        status: 'pending',
         created_at: new Date().toISOString()
       }
     ]);

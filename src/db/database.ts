@@ -6,7 +6,9 @@ import type {
   SetlistItem,
   SongNote,
   ActiveStageSong,
-  MemberProfile
+  MemberProfile,
+  UserStatus,
+  UserRole
 } from '../types';
 
 export class StageDatabase extends Dexie {
@@ -19,13 +21,13 @@ export class StageDatabase extends Dexie {
 
   constructor() {
     super('RockStageDB');
-    this.version(2).stores({
+    this.version(3).stores({
       bands: 'id, name',
       songs: 'id, band_id, title, artist, key, bpm',
       setlists: 'id, band_id, is_active',
       setlist_items: 'id, setlist_id, song_id, position, set_block',
       song_notes: 'id, song_id, instrument',
-      profiles: 'id, band_id, email, instrument, role'
+      profiles: 'id, band_id, email, instrument, role, status'
     });
   }
 }
@@ -223,3 +225,28 @@ export async function getAllProfiles(): Promise<MemberProfile[]> {
 export async function saveProfile(profile: MemberProfile): Promise<void> {
   await db.profiles.put(profile);
 }
+
+export async function updateUserStatus(
+  userId: string,
+  status: UserStatus,
+  approvedBy?: string
+): Promise<void> {
+  const updates: Partial<MemberProfile> = {
+    status,
+    approved_by: status === 'approved' ? approvedBy || 'admin' : null,
+    approved_at: status === 'approved' ? new Date().toISOString() : null
+  };
+  await db.profiles.update(userId, updates);
+}
+
+export async function updateUserRole(
+  userId: string,
+  role: UserRole
+): Promise<void> {
+  await db.profiles.update(userId, { role });
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  await db.profiles.delete(userId);
+}
+

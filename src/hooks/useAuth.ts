@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { db } from '../db/database';
-import type { MemberProfile, InstrumentType } from '../types';
+import type { MemberProfile, InstrumentType, UserRole, UserStatus } from '../types';
 
 const STORAGE_KEY = 'rock_stage_active_profile';
 
@@ -17,7 +17,21 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Carrega ou valida a sessão
+  // Recarrega o perfil mais recente do banco local / Supabase
+  const refreshProfile = useCallback(async () => {
+    if (!currentProfile) return;
+    try {
+      const updated = await db.profiles.get(currentProfile.id);
+      if (updated) {
+        setCurrentProfile(updated);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar perfil:', err);
+    }
+  }, [currentProfile]);
+
+  // Carrega ou valida a sessão ao montar
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -25,19 +39,23 @@ export function useAuth() {
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session?.user) {
             const user = sessionData.session.user;
-            // Busca o perfil no banco ou monta um baseado no user
             const localProfile = await db.profiles.where('id').equals(user.id).first();
             if (localProfile) {
               setCurrentProfile(localProfile);
               localStorage.setItem(STORAGE_KEY, JSON.stringify(localProfile));
             } else {
+              const profilesCount = await db.profiles.count();
+              const isFirstUser = profilesCount === 0;
+
               const fallback: MemberProfile = {
                 id: user.id,
                 band_id: 'b001-rock-band',
                 name: user.user_metadata?.name || user.email?.split('@')[0] || 'Músico',
                 email: user.email || '',
                 instrument: (user.user_metadata?.instrument as InstrumentType) || 'guitar_1',
-                role: (user.user_metadata?.role as 'leader' | 'member') || 'member',
+                role: isFirstUser ? 'admin' : (user.user_metadata?.role as UserRole) || 'member',
+                status: isFirstUser ? 'approved' : 'pending',
+                approved_at: isFirstUser ? new Date().toISOString() : null,
                 created_at: new Date().toISOString()
               };
               await db.profiles.put(fallback);
@@ -85,19 +103,26 @@ export function useAuth() {
 
       if (data.user) {
         const user = data.user;
-        const profile: MemberProfile = {
-          id: user.id,
-          band_id: user.user_metadata?.band_id || 'b001-rock-band',
-          name: user.user_metadata?.name || user.email?.split('@')[0] || 'Músico',
-          email: user.email || '',
-          instrument: (user.user_metadata?.instrument as InstrumentType) || 'guitar_1',
-          role: (user.user_metadata?.role as 'leader' | 'member') || 'member',
-          created_at: new Date().toISOString()
-        };
+        const local = await db.profiles.where('id').equals(user.id).first();
+        if (local) {
+          setCurrentProfile(local);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+        } else {
+          const profile: MemberProfile = {
+            id: user.id,
+            band_id: user.user_metadata?.band_id || 'b001-rock-band',
+            name: user.user_metadata?.name || user.email?.split('@')[0] || 'Músico',
+            email: user.email || '',
+            instrument: (user.user_metadata?.instrument as InstrumentType) || 'guitar_1',
+            role: (user.user_metadata?.role as UserRole) || 'member',
+            status: (user.user_metadata?.status as UserStatus) || 'pending',
+            created_at: new Date().toISOString()
+          };
 
-        await db.profiles.put(profile);
-        setCurrentProfile(profile);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+          await db.profiles.put(profile);
+          setCurrentProfile(profile);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+        }
         return true;
       }
       return false;
@@ -120,6 +145,12 @@ export function useAuth() {
       setLoading(true);
       setAuthError(null);
       try {
+        // Regra do primeiro cadastro: se for o primeiro da base, torna-se Admin aprovado
+        const profilesCount = await db.profiles.count();
+        const isFirstUser = profilesCount === 0;
+        const role: UserRole = isFirstUser ? 'admin' : 'member';
+        const status: UserStatus = isFirstUser ? 'approved' : 'pending';
+
         const { data, error } = await supabase.auth.signUp({
           email,
           password: pass,
@@ -128,7 +159,8 @@ export function useAuth() {
               name,
               instrument,
               band_name: bandName,
-              role: 'member'
+              role,
+              status
             }
           }
         });
@@ -145,7 +177,9 @@ export function useAuth() {
             name,
             email,
             instrument,
-            role: 'member',
+            role,
+            status,
+            approved_at: isFirstUser ? new Date().toISOString() : null,
             created_at: new Date().toISOString()
           };
 
@@ -178,15 +212,25 @@ export function useAuth() {
     }
   }, []);
 
+  const isAdmin = currentProfile?.role === 'admin';
+  const isApproved = currentProfile?.status === 'approved';
+  const isPending = currentProfile?.status === 'pending';
+  const isBlocked = currentProfile?.status === 'blocked';
+
   return {
     currentProfile,
     loading,
     authError,
     setAuthError,
     isConfigured: isSupabaseConfigured,
+    isAdmin,
+    isApproved,
+    isPending,
+    isBlocked,
     selectQuickProfile,
     loginWithSupabase,
     registerWithSupabase,
+    refreshProfile,
     logout
   };
 }

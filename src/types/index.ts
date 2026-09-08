@@ -70,15 +70,22 @@ export type InstrumentType =
   | 'vocals'
   | 'general';
 
+export type UserStatus = 'pending' | 'approved' | 'blocked';
+export type UserRole = 'admin' | 'member';
+
 export interface MemberProfile {
   id: string;
   band_id: string;
   name: string;
   email: string;
   instrument: InstrumentType;
-  role: 'leader' | 'member';
+  role: UserRole;
+  status: UserStatus;
+  approved_by?: string | null;
+  approved_at?: string | null;
   created_at: string;
 }
 
-export type AppViewMode = 'stage' | 'manager' | 'login';
+export type AppViewMode = 'stage' | 'manager' | 'login' | 'pending';
+
 
