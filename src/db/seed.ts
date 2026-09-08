@@ -31,7 +31,7 @@ export async function seedDatabaseIfNeeded(force = false) {
     const bandId = 'b001-rock-band';
     const band: Band = {
       id: bandId,
-      name: 'Electric Overdrive',
+      name: 'Delta Brothers',
       created_at: new Date().toISOString()
     };
     await db.bands.add(band);
@@ -43,7 +43,7 @@ export async function seedDatabaseIfNeeded(force = false) {
     const setlist: Setlist = {
       id: setlistId,
       band_id: bandId,
-      title: 'Rock Stage Live Tour 2026',
+      title: 'Delta Brothers Live Tour 2026',
       event_date: '2026-09-12',
       venue: 'Arena Rock Club',
       is_active: true,

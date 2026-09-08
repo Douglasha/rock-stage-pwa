@@ -102,7 +102,7 @@ export const PendingApprovalScreen: React.FC<PendingApprovalScreenProps> = ({
 
         <div className="flex items-center justify-center gap-1 text-[11px] text-zinc-500 font-mono">
           <Flame className="w-3.5 h-3.5 text-yellow-500" />
-          <span>Rock Stage PWA Security</span>
+          <span>Delta Brothers - Modo Palco</span>
         </div>
       </div>
     </div>

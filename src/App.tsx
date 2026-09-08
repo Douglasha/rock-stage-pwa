@@ -97,7 +97,7 @@ export function App() {
       <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white font-mono gap-4 select-none">
         <Flame className="w-12 h-12 text-yellow-400 animate-bounce" />
         <div className="text-xl font-black uppercase tracking-widest text-zinc-100">
-          Carregando Rock Stage...
+          Carregando Delta Brothers...
         </div>
         <div className="text-xs text-zinc-500">
           Sincronizando armazenamento local Dexie.js (Offline First)

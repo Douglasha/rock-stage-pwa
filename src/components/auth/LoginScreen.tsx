@@ -47,7 +47,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [bandName, setBandName] = useState('Electric Overdrive');
+  const [bandName, setBandName] = useState('Delta Brothers');
   const [instrument, setInstrument] = useState<InstrumentType>('guitar_1');
   const [submitting, setSubmitting] = useState(false);
 
@@ -120,7 +120,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <Flame className="w-8 h-8 fill-current" />
           </div>
           <h1 className="text-2xl font-black uppercase tracking-wider text-white">
-            Rock Stage PWA
+            Delta Brothers
           </h1>
           <p className="text-xs text-zinc-400 mt-1">
             Repertório ao vivo, cifras e letras sem dead air

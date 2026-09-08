@@ -54,7 +54,7 @@ export const ManagerLayout: React.FC<ManagerLayoutProps> = ({
             </div>
             <div>
               <h1 className="text-base font-black uppercase tracking-wider text-white flex items-center gap-2">
-                Electric Overdrive
+                Delta Brothers
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
                   GERENCIADOR
                 </span>

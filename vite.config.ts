@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon.svg'],
       manifest: {
-        name: 'Rock Stage PWA - Modo Palco',
-        short_name: 'RockStage',
-        description: 'PWA de alta performance para shows ao vivo: letras, cifras e setlist offline',
+        name: 'Delta Brothers - Modo Palco',
+        short_name: 'DeltaBrothers',
+        description: 'PWA oficial da banda Delta Brothers: letras, cifras e setlist offline',
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',

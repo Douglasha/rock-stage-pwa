@@ -1,4 +1,4 @@
-# Rock Stage PWA 🎸⚡
+# Delta Brothers - Modo Palco 🎸⚡
 
 PWA de alta performance e operação **100% offline** desenvolvido especialmente para apresentações de bandas de rock ao vivo. Projetado para **eliminar intervalos mortos (*dead air*)** entre as músicas, garantir leitura rápida de letras e cifras sob iluminação de palco e responder a pedais de efeito/virada de página via Bluetooth.
 
