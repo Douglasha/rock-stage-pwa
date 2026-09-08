@@ -28,7 +28,6 @@ interface LoginScreenProps {
   ) => Promise<boolean>;
   authError: string | null;
   isSupabaseConfigured: boolean;
-  onResetAllUsers?: () => Promise<void>;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -37,8 +36,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   loginWithSupabase,
   registerWithSupabase,
   authError,
-  isSupabaseConfigured,
-  onResetAllUsers
+  isSupabaseConfigured
 }) => {
   const [tab, setTab] = useState<'login' | 'register' | 'quick'>('login');
   const [profiles, setProfiles] = useState<MemberProfile[]>([]);
@@ -393,30 +391,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </div>
           )}
         </div>
-
-        {/* Rodapé com Ação de Reset para Iniciar do Zero */}
-        {onResetAllUsers && (
-          <div className="p-3 border-t border-zinc-900 bg-zinc-950 text-center">
-            <button
-              type="button"
-              onClick={async () => {
-                if (
-                  window.confirm(
-                    'Deseja apagar todos os usuários cadastrados e começar do zero?\n\nO próximo usuário a se cadastrar será automaticamente o Administrador da banda.'
-                  )
-                ) {
-                  await onResetAllUsers();
-                  setProfiles([]);
-                  setTab('register');
-                  alert('Usuários apagados com sucesso! Preencha a aba "Cadastrar" para ser o Administrador.');
-                }
-              }}
-              className="text-[11px] text-zinc-500 hover:text-red-400 transition underline font-mono"
-            >
-              Apagar usuários e começar do zero (Novo Admin)
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -265,14 +265,6 @@ export function useAuth() {
     }
   }, []);
 
-  // Limpa todos os perfis e zera para novo primeiro admin
-  const resetAllProfiles = useCallback(async () => {
-    await db.profiles.clear();
-    localStorage.removeItem(STORAGE_KEY);
-    setCurrentProfile(null);
-    setAuthError(null);
-  }, []);
-
   const isAdmin = currentProfile?.role === 'admin';
   const isApproved = currentProfile?.status === 'approved';
   const isPending = currentProfile?.status === 'pending';
@@ -292,7 +284,6 @@ export function useAuth() {
     loginWithSupabase,
     registerWithSupabase,
     refreshProfile,
-    resetAllProfiles,
     logout
   };
 }
