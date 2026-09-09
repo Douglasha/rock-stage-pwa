@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type {
   Band,
   Song,
@@ -33,6 +34,47 @@ export class StageDatabase extends Dexie {
 }
 
 export const db = new StageDatabase();
+
+// ==============================================================================
+// SINCRONIZAÇÃO NUVEM (SUPABASE) <-> CACHE LOCAL (DEXIE)
+// ==============================================================================
+
+export async function syncFromSupabase(): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    const [bandsRes, songsRes, setlistsRes, itemsRes, notesRes, profilesRes] = await Promise.all([
+      supabase.from('bands').select('*'),
+      supabase.from('songs').select('*'),
+      supabase.from('setlists').select('*'),
+      supabase.from('setlist_items').select('*'),
+      supabase.from('song_notes').select('*'),
+      supabase.from('profiles').select('*')
+    ]);
+
+    await db.transaction('rw', [db.bands, db.songs, db.setlists, db.setlist_items, db.song_notes, db.profiles], async () => {
+      if (bandsRes.data?.length) {
+        for (const b of bandsRes.data) await db.bands.put(b);
+      }
+      if (songsRes.data?.length) {
+        for (const s of songsRes.data) await db.songs.put(s);
+      }
+      if (setlistsRes.data?.length) {
+        for (const sl of setlistsRes.data) await db.setlists.put(sl);
+      }
+      if (itemsRes.data?.length) {
+        for (const it of itemsRes.data) await db.setlist_items.put(it);
+      }
+      if (notesRes.data?.length) {
+        for (const n of notesRes.data) await db.song_notes.put(n);
+      }
+      if (profilesRes.data?.length) {
+        for (const p of profilesRes.data) await db.profiles.put(p);
+      }
+    });
+  } catch (err) {
+    console.warn('Erro ao sincronizar com o Supabase:', err);
+  }
+}
 
 // ==============================================================================
 // SETLIST CRUD
@@ -115,6 +157,15 @@ export async function saveSong(
   };
 
   await db.songs.put(song);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('songs').upsert(song);
+    } catch (err) {
+      console.warn('Erro ao sincronizar música no Supabase:', err);
+    }
+  }
+
   return id;
 }
 
@@ -124,6 +175,14 @@ export async function deleteSong(songId: string): Promise<void> {
     await db.song_notes.where('song_id').equals(songId).delete();
     await db.songs.delete(songId);
   });
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('songs').delete().eq('id', songId);
+    } catch (err) {
+      console.warn('Erro ao deletar música no Supabase:', err);
+    }
+  }
 }
 
 // ==============================================================================

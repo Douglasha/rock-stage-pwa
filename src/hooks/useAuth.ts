@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { db } from '../db/database';
+import { db, syncFromSupabase } from '../db/database';
 import type { MemberProfile, InstrumentType, UserRole, UserStatus } from '../types';
 
 const STORAGE_KEY = 'rock_stage_active_profile';
@@ -39,29 +39,29 @@ export function useAuth() {
           const { data: sessionData } = await supabase.auth.getSession();
           if (sessionData?.session?.user) {
             const user = sessionData.session.user;
-            const localProfile = await db.profiles.where('id').equals(user.id).first();
-            if (localProfile) {
-              setCurrentProfile(localProfile);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(localProfile));
-            } else {
-              const profilesCount = await db.profiles.count();
-              const isFirstUser = profilesCount === 0;
 
-              const fallback: MemberProfile = {
-                id: user.id,
-                band_id: 'b001-rock-band',
-                name: user.user_metadata?.name || user.email?.split('@')[0] || 'Músico',
-                email: user.email?.toLowerCase() || '',
-                instrument: (user.user_metadata?.instrument as InstrumentType) || 'guitar_1',
-                role: isFirstUser ? 'admin' : (user.user_metadata?.role as UserRole) || 'member',
-                status: isFirstUser ? 'approved' : 'pending',
-                approved_at: isFirstUser ? new Date().toISOString() : null,
-                created_at: new Date().toISOString()
-              };
-              await db.profiles.put(fallback);
-              setCurrentProfile(fallback);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(fallback));
+            // Busca perfil atualizado na nuvem (Supabase)
+            const { data: dbProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            if (dbProfile) {
+              const profile = dbProfile as MemberProfile;
+              setCurrentProfile(profile);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+              await db.profiles.put(profile);
+            } else {
+              const localProfile = await db.profiles.where('id').equals(user.id).first();
+              if (localProfile) {
+                setCurrentProfile(localProfile);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(localProfile));
+              }
             }
+
+            // Sincroniza dados da nuvem para o cache local
+            await syncFromSupabase();
           }
         }
       } catch (err) {
@@ -102,12 +102,19 @@ export function useAuth() {
 
         if (data.user) {
           const user = data.user;
-          const local = await db.profiles.where('id').equals(user.id).first();
-          if (local) {
-            setCurrentProfile(local);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(local));
+
+          // Busca perfil no Supabase
+          const { data: dbProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          let profile: MemberProfile;
+          if (dbProfile) {
+            profile = dbProfile as MemberProfile;
           } else {
-            const profile: MemberProfile = {
+            profile = {
               id: user.id,
               band_id: user.user_metadata?.band_id || 'b001-rock-band',
               name: user.user_metadata?.name || user.email?.split('@')[0] || 'Músico',
@@ -117,11 +124,14 @@ export function useAuth() {
               status: (user.user_metadata?.status as UserStatus) || 'pending',
               created_at: new Date().toISOString()
             };
-
-            await db.profiles.put(profile);
-            setCurrentProfile(profile);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
           }
+
+          await db.profiles.put(profile);
+          setCurrentProfile(profile);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+
+          // Sincroniza todas as músicas e setlists da nuvem para o aparelho
+          await syncFromSupabase();
           return true;
         }
         return false;
@@ -194,7 +204,15 @@ export function useAuth() {
           }
 
           if (data.user) {
-            const profile: MemberProfile = {
+            // Aguarda o trigger do Supabase criar o registro na tabela profiles
+            await new Promise((r) => setTimeout(r, 400));
+            const { data: dbProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.user.id)
+              .single();
+
+            const profile: MemberProfile = dbProfile ? (dbProfile as MemberProfile) : {
               id: data.user.id,
               band_id: 'b001-rock-band',
               name,
@@ -209,6 +227,7 @@ export function useAuth() {
             await db.profiles.put(profile);
             setCurrentProfile(profile);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+            await syncFromSupabase();
             return true;
           }
           return false;
