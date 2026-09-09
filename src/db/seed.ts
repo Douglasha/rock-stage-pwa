@@ -1,43 +1,38 @@
 import { db } from './database';
 import type { Band, Song, Setlist, SetlistItem, SongNote } from '../types';
 
-export async function seedDatabaseIfNeeded(force = false) {
-  // Limpa quaisquer perfis mock/dummy fictícios criados em versões anteriores
-  try {
-    const dummyProfiles = await db.profiles
-      .filter((p) => p.id.startsWith('member-') || p.email.includes('@banda.com'))
-      .toArray();
-    for (const d of dummyProfiles) {
-      await db.profiles.delete(d.id);
-    }
-  } catch (err) {
-    console.warn('Erro ao limpar perfis mock:', err);
-  }
+const SEEDED_KEY = 'delta_brothers_db_initialized_v1';
 
-  const songCount = await db.songs.count();
-  if (songCount > 0 && !force) {
+export async function seedDatabaseIfNeeded() {
+  // 1. Se já foi inicializado anteriormente no navegador, NUNCA executa novamente
+  if (typeof window !== 'undefined' && localStorage.getItem(SEEDED_KEY) === 'true') {
     return;
   }
 
-  // Clear existing
-  await db.transaction('rw', [db.bands, db.songs, db.setlists, db.setlist_items, db.song_notes, db.profiles], async () => {
-    await db.bands.clear();
-    await db.songs.clear();
-    await db.setlists.clear();
-    await db.setlist_items.clear();
-    await db.song_notes.clear();
-    await db.profiles.clear();
+  // 2. Se já existem músicas, perfis ou bandas no banco, preserva TUDO e marca como inicializado
+  const songCount = await db.songs.count();
+  const bandCount = await db.bands.count();
+  const profileCount = await db.profiles.count();
 
+  if (songCount > 0 || bandCount > 0 || profileCount > 0) {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SEEDED_KEY, 'true');
+    }
+    return;
+  }
+
+  // 3. Apenas se for uma instalação 100% nova/virgem (primeiro acesso de todos):
+  // Insere os dados iniciais SEM NUNCA chamar .clear() em nenhuma tabela!
+  await db.transaction('rw', [db.bands, db.songs, db.setlists, db.setlist_items, db.song_notes], async () => {
     const bandId = 'b001-rock-band';
     const band: Band = {
       id: bandId,
       name: 'Delta Brothers',
       created_at: new Date().toISOString()
     };
-    await db.bands.add(band);
+    await db.bands.put(band);
 
-    // Banco de perfis inicia 100% LIMPO para que o usuário ao se cadastrar seja o Primeiro Administrador real!
-    // Não inserimos nenhum membro fictício aqui.
+    // Perfis iniciam 100% LIMPOS para que o primeiro usuário a se cadastrar seja o Admin oficial.
 
     const setlistId = 's001-tour-setlist';
     const setlist: Setlist = {
@@ -417,9 +412,9 @@ Highway to hell!
 
     for (const songData of songsData) {
       const { notes, item, ...song } = songData;
-      await db.songs.add(song);
+      await db.songs.put(song);
 
-      await db.setlist_items.add({
+      await db.setlist_items.put({
         id: `item-${song.id}`,
         setlist_id: setlistId,
         song_id: song.id,
@@ -432,7 +427,7 @@ Highway to hell!
 
       for (let j = 0; j < notes.length; j++) {
         const note = notes[j];
-        await db.song_notes.add({
+        await db.song_notes.put({
           id: `note-${song.id}-${j}`,
           song_id: song.id,
           instrument: note.instrument,
@@ -442,4 +437,8 @@ Highway to hell!
       }
     }
   });
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SEEDED_KEY, 'true');
+  }
 }

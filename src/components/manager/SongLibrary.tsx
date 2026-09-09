@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, Clock, Zap } from 'lucide-react';
-import { getAllSongs, deleteSong } from '../../db/database';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Plus, Edit2, Trash2, Clock, Zap, Download, Upload } from 'lucide-react';
+import { getAllSongs, deleteSong, exportDatabaseBackup, importDatabaseBackup } from '../../db/database';
 import { SongEditorModal } from './SongEditorModal';
 import type { Song } from '../../types';
 
@@ -28,6 +28,46 @@ export const SongLibrary: React.FC = () => {
   const handleCreateSong = () => {
     setSelectedSong(null);
     setIsEditorOpen(true);
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportBackup = async () => {
+    try {
+      const json = await exportDatabaseBackup();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const date = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `delta-brothers-backup-${date}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Erro ao exportar backup.');
+    }
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+      const res = await importDatabaseBackup(text);
+      if (res.success) {
+        await loadSongs();
+        alert(`Backup restaurado com sucesso! ${res.count} músicas processadas.`);
+      } else {
+        alert(`Falha ao restaurar: ${res.error}`);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const handleDeleteSong = async (id: string, title: string) => {
@@ -80,14 +120,45 @@ export const SongLibrary: React.FC = () => {
           </select>
         </div>
 
-        {/* Botão Nova Música */}
-        <button
-          onClick={handleCreateSong}
-          className="flex items-center justify-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-xs rounded-lg shadow-lg shadow-yellow-500/20 active:scale-95 transition"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Música
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Input oculto para carregar JSON de backup */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImportFile}
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={handleExportBackup}
+            title="Exportar arquivo JSON com todas as músicas e cifras para backup"
+            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-bold text-xs rounded-lg transition"
+          >
+            <Download className="w-3.5 h-3.5 text-yellow-400" />
+            <span className="hidden sm:inline">Exportar Backup</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            title="Restaurar músicas a partir de um arquivo de backup JSON"
+            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-bold text-xs rounded-lg transition"
+          >
+            <Upload className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Importar Backup</span>
+          </button>
+
+          {/* Botão Nova Música */}
+          <button
+            onClick={handleCreateSong}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-xs rounded-lg shadow-lg shadow-yellow-500/20 active:scale-95 transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Nova Música</span>
+          </button>
+        </div>
       </div>
 
       {/* Lista de Músicas */}

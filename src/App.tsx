@@ -7,7 +7,7 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { PendingApprovalScreen } from './components/auth/PendingApprovalScreen';
 import { useAuth } from './hooks/useAuth';
 import type { ActiveStageSong, Setlist, AppViewMode, MemberProfile } from './types';
-import { Flame, RefreshCw, WifiOff } from 'lucide-react';
+import { Flame, WifiOff } from 'lucide-react';
 
 export function App() {
   const {
@@ -35,6 +35,11 @@ export function App() {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+
+    // Solicita persistência de dados no navegador
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -155,32 +160,21 @@ export function App() {
     );
   }
 
-  // 4. SE NÃO HOUVER MÚSICAS NO SETLIST
+  // 4. SE NÃO HOUVER MÚSICAS NO SETLIST SELECIONADO
   if (songs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-screen w-screen bg-black text-white p-6 text-center select-none font-mono">
         <Flame className="w-12 h-12 text-yellow-500 mb-4" />
-        <h2 className="text-2xl font-black uppercase mb-2">Nenhum Repertório Encontrado</h2>
+        <h2 className="text-2xl font-black uppercase mb-2">Setlist Vazio</h2>
         <p className="text-zinc-400 max-w-md text-sm mb-6">
-          Nenhuma música foi encontrada no banco local. Clique no botão abaixo para restaurar o repertório de demonstração.
+          O setlist ativo não possui músicas vinculadas no momento. Abra o Gerenciador de Repertórios para adicionar músicas ao setlist.
         </p>
         <div className="flex gap-3">
           <button
-            onClick={async () => {
-              setLoading(true);
-              await seedDatabaseIfNeeded(true);
-              await loadData();
-            }}
-            className="flex items-center gap-2 px-6 py-3 bg-yellow-400 text-black font-black uppercase tracking-wider rounded-lg shadow-lg active:scale-95 transition text-xs"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Restaurar Demonstração
-          </button>
-          <button
             onClick={() => setViewMode('manager')}
-            className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-black uppercase tracking-wider rounded-lg text-xs transition"
+            className="flex items-center gap-2 px-6 py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider rounded-lg shadow-lg active:scale-95 transition text-xs"
           >
-            Ir ao Gerenciador
+            Abrir Gerenciador de Repertórios
           </button>
         </div>
       </div>

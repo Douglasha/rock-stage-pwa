@@ -250,9 +250,79 @@ export async function deleteUser(userId: string): Promise<void> {
   await db.profiles.delete(userId);
 }
 
-export async function resetAllUsers(): Promise<void> {
-  await db.profiles.clear();
-  localStorage.removeItem('rock_stage_active_profile');
+// ==============================================================================
+// BACKUP & RESTORE (PERSISTÊNCIA DE SEGURANÇA)
+// ==============================================================================
+
+export interface DatabaseBackup {
+  version: number;
+  exportedAt: string;
+  bands?: Band[];
+  songs?: Song[];
+  setlists?: Setlist[];
+  setlist_items?: SetlistItem[];
+  song_notes?: SongNote[];
+}
+
+export async function exportDatabaseBackup(): Promise<string> {
+  const bands = await db.bands.toArray();
+  const songs = await db.songs.toArray();
+  const setlists = await db.setlists.toArray();
+  const setlist_items = await db.setlist_items.toArray();
+  const song_notes = await db.song_notes.toArray();
+
+  const backup: DatabaseBackup = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    bands,
+    songs,
+    setlists,
+    setlist_items,
+    song_notes
+  };
+
+  return JSON.stringify(backup, null, 2);
+}
+
+export async function importDatabaseBackup(jsonContent: string): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const data: DatabaseBackup = JSON.parse(jsonContent);
+    if (!data.songs || !Array.isArray(data.songs)) {
+      return { success: false, count: 0, error: 'Arquivo de backup inválido: lista de músicas não encontrada.' };
+    }
+
+    const songsToImport = data.songs;
+
+    await db.transaction('rw', [db.bands, db.songs, db.setlists, db.setlist_items, db.song_notes], async () => {
+      if (data.bands?.length) {
+        for (const b of data.bands) {
+          await db.bands.put(b);
+        }
+      }
+      for (const s of songsToImport) {
+        await db.songs.put(s);
+      }
+      if (data.setlists?.length) {
+        for (const sl of data.setlists) {
+          await db.setlists.put(sl);
+        }
+      }
+      if (data.setlist_items?.length) {
+        for (const item of data.setlist_items) {
+          await db.setlist_items.put(item);
+        }
+      }
+      if (data.song_notes?.length) {
+        for (const note of data.song_notes) {
+          await db.song_notes.put(note);
+        }
+      }
+    });
+
+    return { success: true, count: data.songs.length };
+  } catch (err: any) {
+    return { success: false, count: 0, error: err?.message || 'Erro ao processar arquivo de backup.' };
+  }
 }
 
 
