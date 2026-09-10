@@ -14,11 +14,12 @@ import {
 import { SetlistManager } from './SetlistManager';
 import { SongLibrary } from './SongLibrary';
 import { UserManagement } from './UserManagement';
-import type { MemberProfile, InstrumentType } from '../../types';
+import type { MemberProfile, InstrumentType, Song } from '../../types';
 
 interface ManagerLayoutProps {
   currentProfile: MemberProfile | null;
   onEnterStage: (setlistId?: string) => void;
+  onPlayStandaloneSong?: (song: Song) => void;
   onLogout: () => void;
   onChangeProfile: () => void;
 }
@@ -26,6 +27,7 @@ interface ManagerLayoutProps {
 export const ManagerLayout: React.FC<ManagerLayoutProps> = ({
   currentProfile,
   onEnterStage,
+  onPlayStandaloneSong,
   onLogout,
   onChangeProfile
 }) => {
@@ -144,7 +146,7 @@ export const ManagerLayout: React.FC<ManagerLayoutProps> = ({
       {/* Área de Conteúdo */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6">
         {activeTab === 'setlists' && <SetlistManager onEnterStage={onEnterStage} />}
-        {activeTab === 'songs' && <SongLibrary />}
+        {activeTab === 'songs' && <SongLibrary onPlayStandaloneSong={onPlayStandaloneSong} />}
         {activeTab === 'users' && <UserManagement currentAdminId={currentProfile?.id || ''} />}
       </main>
     </div>

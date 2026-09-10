@@ -8,20 +8,26 @@ import { useWakeLock } from '../../hooks/useWakeLock';
 import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { usePedalControls } from '../../hooks/usePedalControls';
 import { useSwipe } from '../../hooks/useSwipe';
-import type { ActiveStageSong, Setlist } from '../../types';
+import type { ActiveStageSong, Setlist, Song } from '../../types';
 
 interface StageViewProps {
   songs: ActiveStageSong[];
   initialSongIndex?: number;
   setlist?: Setlist | null;
   onExitStage?: () => void;
+  isStandalone?: boolean;
+  onSelectStandaloneSong?: (song: Song) => void;
+  onRestoreOriginalSetlist?: () => void;
 }
 
 export const StageView: React.FC<StageViewProps> = ({
   songs,
   initialSongIndex = 0,
   setlist,
-  onExitStage
+  onExitStage,
+  isStandalone = false,
+  onSelectStandaloneSong,
+  onRestoreOriginalSetlist
 }) => {
   const [currentIndex, setCurrentIndex] = useState(initialSongIndex);
   const [isSetlistOpen, setIsSetlistOpen] = useState(false);
@@ -164,6 +170,9 @@ export const StageView: React.FC<StageViewProps> = ({
         currentIndex={currentIndex}
         onSelectSong={goToSong}
         setlistTitle={setlist?.title}
+        isStandalone={isStandalone}
+        onSelectStandaloneSong={onSelectStandaloneSong}
+        onRestoreOriginalSetlist={onRestoreOriginalSetlist}
       />
 
       {/* 5. Modal de Anotações por Instrumento */}

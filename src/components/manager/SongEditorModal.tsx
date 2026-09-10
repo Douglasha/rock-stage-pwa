@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Music, Eye, Edit3, Plus, Trash2 } from 'lucide-react';
+import { X, Save, Music, Eye, Edit3, Plus, Trash2, Play } from 'lucide-react';
 import { saveSong, getSongNotes, saveSongNote, deleteSongNote } from '../../db/database';
 import type { Song, SongNote, InstrumentType } from '../../types';
 
@@ -8,6 +8,7 @@ interface SongEditorModalProps {
   onClose: () => void;
   songToEdit?: Song | null;
   onSaved: () => void;
+  onPlayStandaloneSong?: (song: Song) => void;
 }
 
 const COMMON_KEYS = [
@@ -19,7 +20,8 @@ export const SongEditorModal: React.FC<SongEditorModalProps> = ({
   isOpen,
   onClose,
   songToEdit,
-  onSaved
+  onSaved,
+  onPlayStandaloneSong
 }) => {
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
@@ -135,12 +137,29 @@ export const SongEditorModal: React.FC<SongEditorModalProps> = ({
               {songToEdit ? 'Editar Música' : 'Nova Música para o Repertório'}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg active:bg-zinc-800"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            {songToEdit && onPlayStandaloneSong && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onPlayStandaloneSong(songToEdit);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase text-xs rounded-lg active:scale-95 transition"
+                title="Abrir esta música no Modo Palco Avulso"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span className="hidden sm:inline">Tocar no Palco</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-zinc-400 hover:text-white rounded-lg active:bg-zinc-800"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Formulário */}

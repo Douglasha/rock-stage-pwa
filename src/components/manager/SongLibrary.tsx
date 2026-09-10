@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Edit2, Trash2, Clock, Zap, Download, Upload, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Clock, Zap, Download, Upload, RefreshCw, CheckCircle2, Play } from 'lucide-react';
 import {
   getAllSongs,
   deleteSong,
@@ -11,7 +11,11 @@ import {
 import { SongEditorModal } from './SongEditorModal';
 import type { Song } from '../../types';
 
-export const SongLibrary: React.FC = () => {
+interface SongLibraryProps {
+  onPlayStandaloneSong?: (song: Song) => void;
+}
+
+export const SongLibrary: React.FC<SongLibraryProps> = ({ onPlayStandaloneSong }) => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterKey, setFilterKey] = useState<string>('all');
@@ -262,7 +266,18 @@ export const SongLibrary: React.FC = () => {
                 </div>
 
                 {/* Ações */}
-                <div className="flex items-center gap-1 flex-shrink-0">
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {onPlayStandaloneSong && (
+                    <button
+                      onClick={() => onPlayStandaloneSong(song)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase text-xs shadow-md shadow-yellow-500/10 active:scale-95 transition"
+                      title="Abrir imediatamente no Modo Palco Avulso"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Palco</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={() => handleEditSong(song)}
                     className="p-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-yellow-400 transition"
@@ -290,6 +305,7 @@ export const SongLibrary: React.FC = () => {
         onClose={() => setIsEditorOpen(false)}
         songToEdit={selectedSong}
         onSaved={loadSongs}
+        onPlayStandaloneSong={onPlayStandaloneSong}
       />
     </div>
   );

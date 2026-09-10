@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { seedDatabaseIfNeeded } from './db/seed';
-import { getActiveSetlist, getSetlistFullData, getSetlistById, syncFromSupabase } from './db/database';
+import { getActiveSetlist, getSetlistFullData, getSetlistById, syncFromSupabase, getSongNotes } from './db/database';
 import { StageView } from './components/stage/StageView';
 import { ManagerLayout } from './components/manager/ManagerLayout';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { PendingApprovalScreen } from './components/auth/PendingApprovalScreen';
 import { useAuth } from './hooks/useAuth';
-import type { ActiveStageSong, Setlist, AppViewMode, MemberProfile } from './types';
+import type { ActiveStageSong, Setlist, AppViewMode, MemberProfile, Song, SetlistItem } from './types';
 import { Flame, WifiOff } from 'lucide-react';
 
 export function App() {
@@ -28,6 +28,8 @@ export function App() {
   const [setlist, setSetlist] = useState<Setlist | null>(null);
   const [songs, setSongs] = useState<ActiveStageSong[]>([]);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const originalSetlistRef = useRef<{ setlist: Setlist | null; songs: ActiveStageSong[] } | null>(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -94,6 +96,58 @@ export function App() {
     setViewMode('stage');
   };
 
+  const handlePlayStandaloneSong = async (targetSong: Song) => {
+    try {
+      const notes = await getSongNotes(targetSong.id);
+      const standaloneItem: SetlistItem = {
+        id: `standalone-${targetSong.id}`,
+        setlist_id: 'standalone',
+        song_id: targetSong.id,
+        position: 1,
+        set_block: 'Música Avulsa',
+        override_key: targetSong.key,
+        specific_note: 'Música Avulsa / Pedido Especial',
+        created_at: new Date().toISOString()
+      };
+
+      const activeSong: ActiveStageSong = {
+        item: standaloneItem,
+        song: targetSong,
+        effectiveKey: targetSong.key,
+        notes,
+        totalInSet: 1,
+        currentIndex: 0
+      };
+
+      setSongs([activeSong]);
+      setSetlist({
+        id: 'standalone',
+        band_id: targetSong.band_id || 'b001-rock-band',
+        title: `Música Avulsa: ${targetSong.title}`,
+        event_date: null,
+        venue: 'Ao Vivo',
+        is_active: false,
+        created_at: new Date().toISOString()
+      });
+
+      setViewMode('stage');
+    } catch (err) {
+      console.error('Erro ao abrir música avulsa no palco:', err);
+    }
+  };
+
+  const handleRestoreOriginalSetlist = async () => {
+    if (originalSetlistRef.current) {
+      setSetlist(originalSetlistRef.current.setlist);
+      setSongs(originalSetlistRef.current.songs);
+      setIsStandalone(false);
+      originalSetlistRef.current = null;
+    } else {
+      await loadData();
+      setIsStandalone(false);
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     setViewMode('login');
@@ -118,20 +172,6 @@ export function App() {
     return (
       <LoginScreen
         onLoginSuccess={handleLoginSuccess}
-        onEnterStageDirectly={() => {
-          const guestProfile: MemberProfile = {
-            id: `guest-${Date.now()}`,
-            band_id: 'b001-rock-band',
-            name: 'Convidado de Palco',
-            email: 'convidado@banda.com',
-            instrument: 'general',
-            role: 'member',
-            status: 'approved',
-            created_at: new Date().toISOString()
-          };
-          selectQuickProfile(guestProfile);
-          setViewMode('stage');
-        }}
         loginWithSupabase={loginWithSupabase}
         registerWithSupabase={registerWithSupabase}
         authError={authError}
@@ -157,6 +197,7 @@ export function App() {
       <ManagerLayout
         currentProfile={currentProfile}
         onEnterStage={handleEnterStage}
+        onPlayStandaloneSong={handlePlayStandaloneSong}
         onLogout={handleLogout}
         onChangeProfile={handleLogout}
       />
@@ -196,7 +237,15 @@ export function App() {
       <StageView
         songs={songs}
         setlist={setlist}
-        onExitStage={() => setViewMode('manager')}
+        isStandalone={isStandalone}
+        onSelectStandaloneSong={handlePlayStandaloneSong}
+        onRestoreOriginalSetlist={handleRestoreOriginalSetlist}
+        onExitStage={() => {
+          if (isStandalone && originalSetlistRef.current) {
+            handleRestoreOriginalSetlist();
+          }
+          setViewMode('manager');
+        }}
       />
     </div>
   );

@@ -10,14 +10,17 @@ import {
   Zap,
   Wifi,
   WifiOff,
-  AlertCircle
+  AlertCircle,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ArrowLeft
 } from 'lucide-react';
 import { db } from '../../db/database';
 import type { MemberProfile, InstrumentType } from '../../types';
 
 interface LoginScreenProps {
   onLoginSuccess: (profile: MemberProfile) => void;
-  onEnterStageDirectly: () => void;
   loginWithSupabase: (email: string, pass: string) => Promise<boolean>;
   registerWithSupabase: (
     name: string,
@@ -32,7 +35,6 @@ interface LoginScreenProps {
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLoginSuccess,
-  onEnterStageDirectly,
   loginWithSupabase,
   registerWithSupabase,
   authError,
@@ -48,6 +50,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [bandName, setBandName] = useState('Delta Brothers');
   const [instrument, setInstrument] = useState<InstrumentType>('guitar_1');
   const [submitting, setSubmitting] = useState(false);
+
+  // Estados para o Acesso Rápido com Senha
+  const [selectedQuickProfile, setSelectedQuickProfile] = useState<MemberProfile | null>(null);
+  const [quickPassword, setQuickPassword] = useState('');
+  const [showQuickPassword, setShowQuickPassword] = useState(false);
+  const [quickAuthError, setQuickAuthError] = useState<string | null>(null);
 
   // Carrega perfis do banco local (Dexie)
   useEffect(() => {
@@ -79,7 +87,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   };
 
   const handleQuickSelect = (profile: MemberProfile) => {
-    onLoginSuccess(profile);
+    setSelectedQuickProfile(profile);
+    setQuickPassword('');
+    setQuickAuthError(null);
+    setShowQuickPassword(false);
+  };
+
+  const handleQuickPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedQuickProfile || !quickPassword) return;
+    setSubmitting(true);
+    setQuickAuthError(null);
+    const success = await loginWithSupabase(selectedQuickProfile.email, quickPassword);
+    setSubmitting(false);
+    if (success) {
+      const cleanEmail = selectedQuickProfile.email.trim().toLowerCase();
+      const saved = await db.profiles.filter((p) => p.email.toLowerCase() === cleanEmail).first();
+      onLoginSuccess(saved || selectedQuickProfile);
+    } else {
+      setQuickAuthError('Senha incorreta. Tente novamente.');
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -336,58 +363,128 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </form>
           )}
 
-          {/* 3. ABA: ACESSO RÁPIDO DE PALCO (OFFLINE) */}
+          {/* 3. ABA: ACESSO RÁPIDO DE PALCO (COM SENHA DO INTEGRANTE) */}
           {tab === 'quick' && (
             <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wide">
-                  Selecione seu perfil pré-configurado:
-                </h3>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  Ideal para passagens de som rápidas ou celulares de palco sem conexão à internet:
-                </p>
-              </div>
+              {!selectedQuickProfile ? (
+                <>
+                  <div>
+                    <h3 className="text-sm font-bold text-zinc-300 uppercase tracking-wide">
+                      Selecione seu perfil:
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Toque no seu nome para digitar sua senha e entrar rapidamente:
+                    </p>
+                  </div>
 
-              <div className="grid grid-cols-1 gap-2.5 max-h-60 overflow-y-auto pr-1">
-                {profiles.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleQuickSelect(p)}
-                    className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 hover:border-yellow-500/60 transition active:scale-[0.98] text-left group"
-                  >
+                  <div className="grid grid-cols-1 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                    {profiles.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleQuickSelect(p)}
+                        className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 hover:bg-zinc-800/90 border border-zinc-800 hover:border-yellow-500/60 transition active:scale-[0.98] text-left group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-black border border-zinc-800 group-hover:border-zinc-700">
+                            {instrumentIcons[p.instrument] || <UserCheck className="w-5 h-5 text-yellow-400" />}
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-white group-hover:text-yellow-400 transition">
+                              {p.name}
+                            </div>
+                            <div className="text-[11px] text-zinc-400 font-mono">
+                              {instrumentLabels[p.instrument] || p.instrument} •{' '}
+                              <span className={p.role === 'admin' ? 'text-yellow-400 font-bold' : ''}>
+                                {p.role === 'admin' ? 'ADMIN' : 'MEMBRO'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-yellow-400 group-hover:translate-x-0.5 transition">
+                          Entrar →
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <form onSubmit={handleQuickPasswordSubmit} className="space-y-4">
+                  {/* Cartão do Perfil Selecionado */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-black border border-zinc-800 group-hover:border-zinc-700">
-                        {instrumentIcons[p.instrument] || <UserCheck className="w-5 h-5 text-yellow-400" />}
+                      <div className="p-2 rounded-lg bg-black border border-zinc-800">
+                        {instrumentIcons[selectedQuickProfile.instrument] || <UserCheck className="w-5 h-5 text-yellow-400" />}
                       </div>
                       <div>
-                        <div className="font-bold text-sm text-white group-hover:text-yellow-400 transition">
-                          {p.name}
+                        <div className="font-bold text-sm text-white">
+                          {selectedQuickProfile.name}
                         </div>
                         <div className="text-[11px] text-zinc-400 font-mono">
-                          {instrumentLabels[p.instrument] || p.instrument} •{' '}
-                          <span className={p.role === 'admin' ? 'text-yellow-400 font-bold' : ''}>
-                            {p.role === 'admin' ? 'ADMIN' : 'MEMBRO'}
-                          </span>
+                          {selectedQuickProfile.email}
                         </div>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-bold text-yellow-400 group-hover:translate-x-0.5 transition">
-                      Entrar →
-                    </span>
-                  </button>
-                ))}
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedQuickProfile(null)}
+                      className="flex items-center gap-1 text-xs font-bold text-zinc-400 hover:text-yellow-400 transition px-2 py-1 rounded bg-black/40 border border-zinc-800"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Trocar</span>
+                    </button>
+                  </div>
 
-              {/* Acesso rápido sem perfil */}
-              <div className="pt-2 border-t border-zinc-800/80">
-                <button
-                  onClick={onEnterStageDirectly}
-                  className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white font-bold text-xs uppercase tracking-wider rounded-xl active:scale-95 transition flex items-center justify-center gap-2"
-                >
-                  <Zap className="w-4 h-4 text-yellow-400" />
-                  Entrar como Convidado de Palco ⚡
-                </button>
-              </div>
+                  {quickAuthError && (
+                    <div className="p-3 rounded-xl bg-red-950/80 border border-red-800/80 text-red-300 text-xs font-semibold flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                      <span>{quickAuthError}</span>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-400 uppercase mb-1">
+                      Digite sua Senha de Acesso
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showQuickPassword ? 'text' : 'password'}
+                        value={quickPassword}
+                        onChange={(e) => setQuickPassword(e.target.value)}
+                        placeholder="Sua senha de acesso"
+                        autoFocus
+                        required
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400 text-sm pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickPassword(!showQuickPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 p-0.5"
+                        tabIndex={-1}
+                      >
+                        {showQuickPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedQuickProfile(null)}
+                      className="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-bold rounded-xl transition"
+                    >
+                      Voltar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting || !quickPassword}
+                      className="flex-1 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-yellow-500/20 active:scale-95 transition disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>{submitting ? 'Entrando...' : 'Confirmar & Entrar'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           )}
         </div>
