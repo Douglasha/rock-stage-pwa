@@ -186,4 +186,46 @@ CREATE POLICY "Allow approved members manage song_notes" ON song_notes FOR ALL U
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
 );
 
+-- ==============================================================================
+-- 7. REDEFINIÇÃO DE SENHA PELO ADMINISTRADOR
+-- ==============================================================================
+-- Permite que um administrador aprovado redefina a senha de qualquer integrante.
+-- A senha é criptografada com bcrypt e atualizada diretamente no auth.users do Supabase.
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+CREATE OR REPLACE FUNCTION public.admin_reset_password(target_user_id UUID, new_password TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, auth
+AS $$
+BEGIN
+    -- 1. Verifica se o chamador atual é um administrador aprovado
+    IF NOT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() AND role = 'admin' AND status = 'approved'
+    ) THEN
+        RAISE EXCEPTION 'Acesso negado: apenas administradores aprovados podem redefinir senhas.';
+    END IF;
+
+    -- 2. Validação do tamanho mínimo da nova senha
+    IF length(new_password) < 6 THEN
+        RAISE EXCEPTION 'A nova senha deve ter no mínimo 6 caracteres.';
+    END IF;
+
+    -- 3. Atualiza a senha encriptada do usuário na tabela auth.users
+    UPDATE auth.users
+    SET encrypted_password = extensions.crypt(new_password, extensions.gen_salt('bf')),
+        updated_at = NOW()
+    WHERE id = target_user_id;
+
+    RETURN TRUE;
+END;
+$$;
+
+-- Apenas usuários autenticados podem invocar a função (a verificação de admin ocorre internamente)
+REVOKE EXECUTE ON FUNCTION public.admin_reset_password(UUID, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_reset_password(UUID, TEXT) TO authenticated;
+
+
 

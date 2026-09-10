@@ -495,6 +495,55 @@ export async function deleteUser(userId: string): Promise<void> {
   }
 }
 
+export async function adminResetUserPassword(
+  userId: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' };
+  }
+
+  // 1. Atualiza no cache local do Dexie
+  try {
+    await db.profiles.update(userId, { password: newPassword });
+  } catch (localErr) {
+    console.warn('Aviso ao atualizar senha no cache local:', localErr);
+  }
+
+  // 2. Se Supabase estiver configurado, invoca a função RPC admin_reset_password
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.rpc('admin_reset_password', {
+        target_user_id: userId,
+        new_password: newPassword
+      });
+
+      if (error) {
+        console.error('Erro na RPC admin_reset_password:', error);
+        if (error.message?.includes('function') && error.message?.includes('does not exist')) {
+          return {
+            success: false,
+            error: 'A função admin_reset_password ainda não foi executada no Supabase. Cole o script do schema.sql no SQL Editor do Supabase.'
+          };
+        }
+        return {
+          success: false,
+          error: error.message || 'Erro ao atualizar senha no Supabase.'
+        };
+      }
+    } catch (err: any) {
+      console.error('Falha de conexão com o Supabase ao redefinir senha:', err);
+      return {
+        success: false,
+        error: err.message || 'Falha de comunicação com o Supabase.'
+      };
+    }
+  }
+
+  return { success: true };
+}
+
+
 // ==============================================================================
 // BACKUP & RESTORE (PERSISTÊNCIA DE SEGURANÇA)
 // ==============================================================================

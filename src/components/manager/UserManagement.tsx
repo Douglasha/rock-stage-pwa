@@ -8,13 +8,19 @@ import {
   Mic,
   Drum,
   Search,
-  Crown
+  Crown,
+  KeyRound,
+  X,
+  Eye,
+  EyeOff,
+  AlertCircle
 } from 'lucide-react';
 import {
   getAllProfiles,
   updateUserStatus,
   updateUserRole,
-  deleteUser
+  deleteUser,
+  adminResetUserPassword
 } from '../../db/database';
 import type { MemberProfile, UserStatus, UserRole, InstrumentType } from '../../types';
 
@@ -27,6 +33,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentAdminId }
   const [filterStatus, setFilterStatus] = useState<'all' | UserStatus>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Estados para o modal de redefinição de senha
+  const [resetUser, setResetUser] = useState<MemberProfile | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetModalError, setResetModalError] = useState<string | null>(null);
 
   const loadUsers = async () => {
     const list = await getAllProfiles();
@@ -87,6 +101,52 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentAdminId }
       showNotification(`Cadastro de ${name} removido com sucesso.`);
     }
   };
+
+  const handleOpenResetModal = (user: MemberProfile) => {
+    setResetUser(user);
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowPassword(false);
+    setResetModalError(null);
+  };
+
+  const handleCloseResetModal = () => {
+    setResetUser(null);
+    setNewPassword('');
+    setConfirmPassword('');
+    setResetModalError(null);
+    setIsResetting(false);
+  };
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetUser) return;
+
+    if (newPassword.length < 6) {
+      setResetModalError('A senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setResetModalError('As senhas digitadas não coincidem.');
+      return;
+    }
+
+    setIsResetting(true);
+    setResetModalError(null);
+
+    const res = await adminResetUserPassword(resetUser.id, newPassword);
+
+    setIsResetting(false);
+
+    if (res.success) {
+      handleCloseResetModal();
+      showNotification(`Senha do integrante ${resetUser.name} redefinida com sucesso!`);
+    } else {
+      setResetModalError(res.error || 'Erro ao redefinir a senha.');
+    }
+  };
+
 
   const instrumentIcons: Record<InstrumentType, React.ReactNode> = {
     guitar_1: <Guitar className="w-4 h-4 text-yellow-400" />,
@@ -262,6 +322,16 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentAdminId }
                     </button>
                   )}
 
+                  {/* Botão Redefinir Senha */}
+                  <button
+                    onClick={() => handleOpenResetModal(user)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-yellow-500/10 text-yellow-400 hover:text-yellow-300 border border-zinc-800 hover:border-yellow-500/40 text-xs font-bold transition"
+                    title={`Redefinir senha de ${user.name}`}
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Senha</span>
+                  </button>
+
                   {/* Botão Bloquear */}
                   {!isBlocked && !isSelf && (
                     <button
@@ -304,6 +374,124 @@ export const UserManagement: React.FC<UserManagementProps> = ({ currentAdminId }
           })
         )}
       </div>
+
+      {/* Modal de Redefinição de Senha */}
+      {resetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={handleCloseResetModal}
+          />
+
+          <div className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl z-10 overflow-hidden text-white animate-fade-in">
+            {/* Topo do Modal */}
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm uppercase tracking-wide">
+                    Redefinir Senha
+                  </h3>
+                  <p className="text-xs text-zinc-400 truncate max-w-[240px]">
+                    {resetUser.name} ({resetUser.email})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseResetModal}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Formulário */}
+            <form onSubmit={handleConfirmReset} className="p-5 space-y-4">
+              <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl text-xs text-zinc-300 leading-relaxed">
+                Como Administrador, você definirá uma nova senha de acesso para <strong>{resetUser.name}</strong>. O integrante deverá utilizá-la no próximo login.
+              </div>
+
+              {resetModalError && (
+                <div className="p-3 bg-red-950/80 border border-red-800/80 rounded-xl flex items-center gap-2 text-xs font-semibold text-red-300">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400" />
+                  <span>{resetModalError}</span>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                  Nova Senha
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Mínimo de 6 caracteres"
+                    required
+                    minLength={6}
+                    autoFocus
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400 transition pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 p-0.5"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                  Confirmar Nova Senha
+                </label>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repita a nova senha"
+                  required
+                  minLength={6}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-yellow-400 transition"
+                />
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="pt-2 flex items-center justify-end gap-2.5 border-t border-zinc-800/80">
+                <button
+                  type="button"
+                  onClick={handleCloseResetModal}
+                  disabled={isResetting}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-800 transition active:scale-95 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResetting}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-yellow-400 hover:bg-yellow-300 text-black shadow-lg shadow-yellow-500/10 transition active:scale-95 disabled:opacity-50"
+                >
+                  {isResetting ? (
+                    <span>Salvando...</span>
+                  ) : (
+                    <>
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>Salvar Senha</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
