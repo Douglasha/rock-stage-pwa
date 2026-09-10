@@ -148,43 +148,23 @@ CREATE POLICY "Allow read profiles" ON profiles FOR SELECT USING (auth.role() = 
 CREATE POLICY "Allow update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Allow admin manage profiles" ON profiles FOR ALL USING (is_admin());
 
--- MÚSICAS (Leitura e Edição para integrantes aprovados)
-CREATE POLICY "Allow approved members read songs" ON songs FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
-CREATE POLICY "Allow approved members insert songs" ON songs FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
-CREATE POLICY "Allow approved members update songs" ON songs FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
-CREATE POLICY "Allow approved members delete songs" ON songs FOR DELETE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
+-- MÚSICAS (Acesso para todos os integrantes autenticados da banda)
+CREATE POLICY "Allow authenticated read songs" ON songs FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated insert songs" ON songs FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated update songs" ON songs FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated delete songs" ON songs FOR DELETE USING (auth.role() = 'authenticated');
 
--- SETLISTS (Leitura e Edição para integrantes aprovados)
-CREATE POLICY "Allow approved members read setlists" ON setlists FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
-CREATE POLICY "Allow approved members insert setlists" ON setlists FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
-CREATE POLICY "Allow approved members update setlists" ON setlists FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
-CREATE POLICY "Allow approved members delete setlists" ON setlists FOR DELETE USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
+-- SETLISTS (Acesso para todos os integrantes autenticados da banda)
+CREATE POLICY "Allow authenticated read setlists" ON setlists FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated insert setlists" ON setlists FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated update setlists" ON setlists FOR UPDATE USING (auth.role() = 'authenticated');
+CREATE POLICY "Allow authenticated delete setlists" ON setlists FOR DELETE USING (auth.role() = 'authenticated');
 
--- SETLIST_ITEMS
-CREATE POLICY "Allow approved members manage setlist_items" ON setlist_items FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
+-- SETLIST_ITEMS (Ordem das músicas nos repertórios)
+CREATE POLICY "Allow authenticated manage setlist_items" ON setlist_items FOR ALL USING (auth.role() = 'authenticated');
 
--- SONG_NOTES
-CREATE POLICY "Allow approved members manage song_notes" ON song_notes FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND status = 'approved')
-);
+-- SONG_NOTES (Anotações dos integrantes)
+CREATE POLICY "Allow authenticated manage song_notes" ON song_notes FOR ALL USING (auth.role() = 'authenticated');
 
 -- ==============================================================================
 -- 7. REDEFINIÇÃO DE SENHA PELO ADMINISTRADOR

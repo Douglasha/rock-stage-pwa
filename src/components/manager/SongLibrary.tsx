@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Edit2, Trash2, Clock, Zap, Download, Upload } from 'lucide-react';
-import { getAllSongs, deleteSong, exportDatabaseBackup, importDatabaseBackup } from '../../db/database';
+import { Search, Plus, Edit2, Trash2, Clock, Zap, Download, Upload, RefreshCw, CheckCircle2 } from 'lucide-react';
+import {
+  getAllSongs,
+  deleteSong,
+  exportDatabaseBackup,
+  importDatabaseBackup,
+  uploadAllLocalDataToSupabase,
+  syncFromSupabase
+} from '../../db/database';
 import { SongEditorModal } from './SongEditorModal';
 import type { Song } from '../../types';
 
@@ -10,6 +17,8 @@ export const SongLibrary: React.FC = () => {
   const [filterKey, setFilterKey] = useState<string>('all');
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const loadSongs = async () => {
     const list = await getAllSongs();
@@ -19,6 +28,26 @@ export const SongLibrary: React.FC = () => {
   useEffect(() => {
     loadSongs();
   }, []);
+
+  const handleSyncCloud = async () => {
+    setIsSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await uploadAllLocalDataToSupabase();
+      await syncFromSupabase();
+      await loadSongs();
+      if (res.success) {
+        setSyncMessage(`Sincronização concluída! ${res.songsCount} músicas e ${res.setlistsCount} repertórios disponíveis na nuvem para todos os integrantes.`);
+      } else {
+        alert(res.error || 'Erro ao sincronizar com a nuvem.');
+      }
+    } catch (err: any) {
+      alert(`Falha ao sincronizar: ${err?.message || err}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(null), 5000);
+    }
+  };
 
   const handleEditSong = (song: Song) => {
     setSelectedSong(song);
@@ -150,6 +179,17 @@ export const SongLibrary: React.FC = () => {
             <span className="hidden sm:inline">Importar Backup</span>
           </button>
 
+          <button
+            type="button"
+            onClick={handleSyncCloud}
+            disabled={isSyncing}
+            title="Sincronizar todas as músicas locais com a nuvem (Supabase) para que apareçam para todos os integrantes"
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/80 text-emerald-300 font-bold text-xs rounded-lg transition disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar Nuvem'}</span>
+          </button>
+
           {/* Botão Nova Música */}
           <button
             onClick={handleCreateSong}
@@ -159,6 +199,22 @@ export const SongLibrary: React.FC = () => {
             <span>Nova Música</span>
           </button>
         </div>
+      </div>
+
+      {/* Alerta de Sincronização */}
+      {syncMessage && (
+        <div className="p-3 bg-emerald-950/90 border border-emerald-600 text-emerald-200 text-xs font-bold rounded-xl flex items-center gap-2 animate-fade-in shadow-lg">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+          <span>{syncMessage}</span>
+        </div>
+      )}
+
+      {/* Contador de Músicas */}
+      <div className="flex items-center justify-between text-xs text-zinc-400 font-mono px-1">
+        <span>Repertório total: <strong className="text-yellow-400 font-bold">{songs.length}</strong> músicas cadastradas</span>
+        {filteredSongs.length !== songs.length && (
+          <span>Filtradas: <strong className="text-white">{filteredSongs.length}</strong></span>
+        )}
       </div>
 
       {/* Lista de Músicas */}

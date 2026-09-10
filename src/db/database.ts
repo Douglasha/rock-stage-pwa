@@ -39,12 +39,151 @@ export const db = new StageDatabase();
 // SINCRONIZAÇÃO NUVEM (SUPABASE) <-> CACHE LOCAL (DEXIE)
 // ==============================================================================
 
+/**
+ * Envia todos os dados locais do Dexie para a nuvem do Supabase.
+ * Garante que músicas, repertórios e itens cadastrados no navegador subam para o servidor
+ * e fiquem imediatamente disponíveis para todos os demais integrantes da banda.
+ */
+export async function uploadAllLocalDataToSupabase(): Promise<{
+  success: boolean;
+  songsCount: number;
+  setlistsCount: number;
+  error?: string;
+}> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { success: false, songsCount: 0, setlistsCount: 0, error: 'Supabase não está configurado.' };
+  }
+
+  try {
+    // 1. Garante que a banda padrão exista no Supabase
+    await supabase.from('bands').upsert({ id: 'b001-rock-band', name: 'Delta Brothers' });
+
+    const localBands = await db.bands.toArray();
+    for (const b of localBands) {
+      if (b.id && b.name) {
+        await supabase.from('bands').upsert({ id: b.id, name: b.name });
+      }
+    }
+
+    // 2. Normaliza e envia todas as músicas locais para o Supabase
+    const localSongs = await db.songs.toArray();
+    const sanitizedSongs = localSongs.map((s) => ({
+      id: s.id,
+      band_id: s.band_id || 'b001-rock-band',
+      title: s.title ? s.title.trim() : 'Sem título',
+      artist: s.artist ? s.artist.trim() : 'Delta Brothers',
+      key: s.key || 'E',
+      bpm: (Number(s.bpm) > 0 && Number(s.bpm) < 350) ? Number(s.bpm) : 120,
+      duration_sec: Number(s.duration_sec) || 0,
+      lyrics: s.lyrics || '',
+      structure: s.structure || '',
+      created_at: s.created_at || new Date().toISOString()
+    }));
+
+    if (sanitizedSongs.length > 0) {
+      // Envia em lotes de 40 músicas para garantir requisições rápidas e sem falhas de payload
+      for (let i = 0; i < sanitizedSongs.length; i += 40) {
+        const chunk = sanitizedSongs.slice(i, i + 40);
+        const { error: songsErr } = await supabase.from('songs').upsert(chunk);
+        if (songsErr) {
+          console.error('Erro ao enviar lote de músicas para o Supabase:', songsErr);
+          return {
+            success: false,
+            songsCount: 0,
+            setlistsCount: 0,
+            error: `Erro ao subir músicas: ${songsErr.message}`
+          };
+        }
+      }
+    }
+
+    // 3. Normaliza e envia todos os repertórios (setlists) locais
+    const localSetlists = await db.setlists.toArray();
+    const sanitizedSetlists = localSetlists.map((sl) => ({
+      id: sl.id,
+      band_id: sl.band_id || 'b001-rock-band',
+      title: sl.title ? sl.title.trim() : 'Repertório',
+      event_date: sl.event_date || null,
+      venue: sl.venue || '',
+      is_active: Boolean(sl.is_active),
+      created_at: sl.created_at || new Date().toISOString()
+    }));
+
+    if (sanitizedSetlists.length > 0) {
+      const { error: slErr } = await supabase.from('setlists').upsert(sanitizedSetlists);
+      if (slErr) console.warn('Aviso ao enviar setlists para o Supabase:', slErr);
+    }
+
+    // 4. Envia todos os itens de setlists (músicas dentro dos repertórios)
+    const localItems = await db.setlist_items.toArray();
+    if (localItems.length > 0) {
+      const validSongIds = new Set(sanitizedSongs.map((s) => s.id));
+      const validItems = localItems
+        .filter((it) => validSongIds.has(it.song_id))
+        .map((it) => ({
+          id: it.id,
+          setlist_id: it.setlist_id,
+          song_id: it.song_id,
+          position: it.position,
+          set_block: it.set_block || 'Set 1',
+          override_key: it.override_key || null,
+          specific_note: it.specific_note || '',
+          created_at: it.created_at || new Date().toISOString()
+        }));
+
+      if (validItems.length > 0) {
+        for (let i = 0; i < validItems.length; i += 40) {
+          const chunk = validItems.slice(i, i + 40);
+          const { error: itemsErr } = await supabase.from('setlist_items').upsert(chunk);
+          if (itemsErr) console.warn('Aviso ao enviar itens de setlist:', itemsErr);
+        }
+      }
+    }
+
+    // 5. Envia notas de músicas se houver
+    const localNotes = await db.song_notes.toArray();
+    if (localNotes.length > 0) {
+      const { error: notesErr } = await supabase.from('song_notes').upsert(localNotes);
+      if (notesErr) console.warn('Aviso ao enviar notas para o Supabase:', notesErr);
+    }
+
+    return {
+      success: true,
+      songsCount: sanitizedSongs.length,
+      setlistsCount: sanitizedSetlists.length
+    };
+  } catch (err: any) {
+    console.error('Falha ao subir dados locais para o Supabase:', err);
+    return {
+      success: false,
+      songsCount: 0,
+      setlistsCount: 0,
+      error: err.message || 'Falha de comunicação com o Supabase'
+    };
+  }
+}
+
 export async function syncFromSupabase(): Promise<void> {
   if (!isSupabaseConfigured || !supabase) return;
   try {
+    // 1. Verifica se temos dados locais no dispositivo
+    const localSongCount = await db.songs.count();
+
+    // 2. Busca lista de IDs da nuvem para conferir volume
+    const { data: cloudSongs } = await supabase.from('songs').select('id');
+    const cloudCount = cloudSongs?.length ?? 0;
+
+    // Se o banco local possui músicas cadastradas e a nuvem possui menos (ou nenhuma),
+    // subimos os dados locais automaticamente para a nuvem
+    if (localSongCount > 0 && cloudCount < localSongCount) {
+      console.log(`Subindo ${localSongCount} músicas locais para a nuvem Supabase...`);
+      await uploadAllLocalDataToSupabase();
+    }
+
+    // 3. Busca todos os dados da nuvem para atualizar o cache local
     const [bandsRes, songsRes, setlistsRes, itemsRes, notesRes, profilesRes] = await Promise.all([
       supabase.from('bands').select('*'),
-      supabase.from('songs').select('*'),
+      supabase.from('songs').select('*').order('title'),
       supabase.from('setlists').select('*'),
       supabase.from('setlist_items').select('*'),
       supabase.from('song_notes').select('*'),
@@ -209,13 +348,14 @@ export async function saveSong(
   data: Omit<Song, 'id' | 'created_at'> & { id?: string }
 ): Promise<string> {
   const id = data.id || `song-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const bpmNum = Number(data.bpm);
   const song: Song = {
     id,
-    band_id: data.band_id,
-    title: data.title,
-    artist: data.artist,
-    key: data.key,
-    bpm: Number(data.bpm) || 120,
+    band_id: data.band_id || 'b001-rock-band',
+    title: data.title ? data.title.trim() : 'Sem título',
+    artist: data.artist ? data.artist.trim() : 'Delta Brothers',
+    key: data.key || 'E',
+    bpm: (bpmNum > 0 && bpmNum < 350) ? bpmNum : 120,
     duration_sec: Number(data.duration_sec) || 0,
     lyrics: data.lyrics || '',
     structure: data.structure || '',
@@ -226,6 +366,8 @@ export async function saveSong(
 
   if (isSupabaseConfigured && supabase) {
     try {
+      // Garante que a banda exista no Supabase antes de inserir a música
+      await supabase.from('bands').upsert({ id: 'b001-rock-band', name: 'Delta Brothers' });
       const { error } = await supabase.from('songs').upsert(song);
       if (error) {
         console.error('Erro ao salvar música no Supabase:', error);
@@ -353,6 +495,27 @@ export async function saveSetlistItems(
 
   if (isSupabaseConfigured && supabase) {
     try {
+      // Garante que todas as músicas associadas a este setlist estejam salvas no Supabase
+      // para evitar falhas de chave estrangeira (Foreign Key violation)
+      for (const it of items) {
+        const localSong = await db.songs.get(it.song_id);
+        if (localSong) {
+          const bpmNum = Number(localSong.bpm);
+          await supabase.from('songs').upsert({
+            id: localSong.id,
+            band_id: localSong.band_id || 'b001-rock-band',
+            title: localSong.title ? localSong.title.trim() : 'Sem título',
+            artist: localSong.artist ? localSong.artist.trim() : 'Delta Brothers',
+            key: localSong.key || 'E',
+            bpm: (bpmNum > 0 && bpmNum < 350) ? bpmNum : 120,
+            duration_sec: Number(localSong.duration_sec) || 0,
+            lyrics: localSong.lyrics || '',
+            structure: localSong.structure || '',
+            created_at: localSong.created_at || new Date().toISOString()
+          });
+        }
+      }
+
       await supabase.from('setlist_items').delete().eq('setlist_id', setlistId);
       if (newItems.length > 0) {
         const { error } = await supabase.from('setlist_items').insert(newItems);
@@ -612,6 +775,15 @@ export async function importDatabaseBackup(jsonContent: string): Promise<{ succe
         }
       }
     });
+
+    // Se o Supabase estiver configurado, sincroniza tudo imediatamente com a nuvem
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await uploadAllLocalDataToSupabase();
+      } catch (uploadErr) {
+        console.warn('Aviso: dados importados localmente, mas houve falha ao enviar para o Supabase:', uploadErr);
+      }
+    }
 
     return { success: true, count: data.songs.length };
   } catch (err: any) {

@@ -8,13 +8,16 @@ import {
   MapPin,
   Clock,
   Music,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import {
   getAllSetlists,
   setActiveSetlist,
   deleteSetlist,
-  getSetlistFullData
+  getSetlistFullData,
+  syncFromSupabase,
+  uploadAllLocalDataToSupabase
 } from '../../db/database';
 import { SetlistEditorModal } from './SetlistEditorModal';
 import type { Setlist } from '../../types';
@@ -32,8 +35,12 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ onEnterStage }) 
   const [setlists, setSetlists] = useState<SetlistWithStats[]>([]);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [selectedSetlist, setSelectedSetlist] = useState<Setlist | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const loadSetlists = async () => {
+    try {
+      await syncFromSupabase();
+    } catch {}
     const list = await getAllSetlists();
     const withStats: SetlistWithStats[] = [];
 
@@ -48,6 +55,19 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ onEnterStage }) 
     }
 
     setSetlists(withStats);
+  };
+
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      await uploadAllLocalDataToSupabase();
+      await syncFromSupabase();
+      await loadSetlists();
+    } catch (err) {
+      console.warn('Erro ao sincronizar repertórios:', err);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   useEffect(() => {
@@ -90,13 +110,25 @@ export const SetlistManager: React.FC<SetlistManagerProps> = ({ onEnterStage }) 
           </p>
         </div>
 
-        <button
-          onClick={handleCreate}
-          className="flex items-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-xs rounded-lg shadow-lg shadow-yellow-500/20 active:scale-95 transition"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Repertório
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            title="Sincronizar repertórios e músicas com a nuvem"
+            className="flex items-center gap-1.5 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-bold text-xs rounded-lg transition disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-yellow-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Sincronizar</span>
+          </button>
+
+          <button
+            onClick={handleCreate}
+            className="flex items-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase tracking-wider text-xs rounded-lg shadow-lg shadow-yellow-500/20 active:scale-95 transition"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Repertório
+          </button>
+        </div>
       </div>
 
       {/* Grid de Repertórios */}
