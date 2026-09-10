@@ -81,6 +81,21 @@ export async function syncFromSupabase(): Promise<void> {
 // ==============================================================================
 
 export async function getAllSetlists(): Promise<Setlist[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('setlists')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        for (const sl of data) {
+          await db.setlists.put(sl);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar setlists do Supabase:', err);
+    }
+  }
   return await db.setlists.toArray();
 }
 
@@ -101,6 +116,15 @@ export async function setActiveSetlist(setlistId: string): Promise<void> {
       await db.setlists.update(s.id, { is_active: s.id === setlistId });
     }
   });
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('setlists').update({ is_active: false }).neq('id', setlistId);
+      await supabase.from('setlists').update({ is_active: true }).eq('id', setlistId);
+    } catch (err) {
+      console.warn('Erro ao sincronizar setlist ativo com Supabase:', err);
+    }
+  }
 }
 
 export async function createSetlist(
@@ -112,12 +136,31 @@ export async function createSetlist(
     id,
     created_at: new Date().toISOString()
   };
-  await db.setlists.add(newSetlist);
+  await db.setlists.put(newSetlist);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('setlists').upsert(newSetlist);
+      if (error) console.error('Erro ao salvar setlist no Supabase:', error);
+    } catch (err) {
+      console.warn('Erro ao salvar setlist no Supabase:', err);
+    }
+  }
+
   return id;
 }
 
 export async function updateSetlist(id: string, updates: Partial<Setlist>): Promise<void> {
   await db.setlists.update(id, updates);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('setlists').update(updates).eq('id', id);
+      if (error) console.error('Erro ao atualizar setlist no Supabase:', error);
+    } catch (err) {
+      console.warn('Erro ao atualizar setlist no Supabase:', err);
+    }
+  }
 }
 
 export async function deleteSetlist(id: string): Promise<void> {
@@ -125,6 +168,14 @@ export async function deleteSetlist(id: string): Promise<void> {
     await db.setlist_items.where('setlist_id').equals(id).delete();
     await db.setlists.delete(id);
   });
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('setlists').delete().eq('id', id);
+    } catch (err) {
+      console.warn('Erro ao deletar setlist no Supabase:', err);
+    }
+  }
 }
 
 // ==============================================================================
@@ -132,6 +183,21 @@ export async function deleteSetlist(id: string): Promise<void> {
 // ==============================================================================
 
 export async function getAllSongs(): Promise<Song[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('songs')
+        .select('*')
+        .order('title');
+      if (!error && data) {
+        for (const s of data) {
+          await db.songs.put(s);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar músicas do Supabase:', err);
+    }
+  }
   return await db.songs.orderBy('title').toArray();
 }
 
@@ -160,7 +226,10 @@ export async function saveSong(
 
   if (isSupabaseConfigured && supabase) {
     try {
-      await supabase.from('songs').upsert(song);
+      const { error } = await supabase.from('songs').upsert(song);
+      if (error) {
+        console.error('Erro ao salvar música no Supabase:', error);
+      }
     } catch (err) {
       console.warn('Erro ao sincronizar música no Supabase:', err);
     }
@@ -190,6 +259,27 @@ export async function deleteSong(songId: string): Promise<void> {
 // ==============================================================================
 
 export async function getSetlistFullData(setlistId: string): Promise<ActiveStageSong[]> {
+  // Se online, atualiza os itens desse setlist do Supabase
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data: cloudItems, error } = await supabase
+        .from('setlist_items')
+        .select('*')
+        .eq('setlist_id', setlistId)
+        .order('position');
+      if (!error && cloudItems && cloudItems.length > 0) {
+        await db.transaction('rw', db.setlist_items, async () => {
+          await db.setlist_items.where('setlist_id').equals(setlistId).delete();
+          for (const it of cloudItems) {
+            await db.setlist_items.put(it);
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('Erro ao sincronizar itens do setlist:', err);
+    }
+  }
+
   const items = await db.setlist_items
     .where('setlist_id')
     .equals(setlistId)
@@ -199,7 +289,23 @@ export async function getSetlistFullData(setlistId: string): Promise<ActiveStage
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    const song = await db.songs.get(item.song_id);
+    let song = await db.songs.get(item.song_id);
+
+    // Se a música ainda não estiver no banco local, busca do Supabase
+    if (!song && isSupabaseConfigured && supabase) {
+      try {
+        const { data: cloudSong } = await supabase
+          .from('songs')
+          .select('*')
+          .eq('id', item.song_id)
+          .single();
+        if (cloudSong) {
+          song = cloudSong as Song;
+          await db.songs.put(song);
+        }
+      } catch {}
+    }
+
     if (!song) continue;
 
     const notes = await db.song_notes.where('song_id').equals(song.id).toArray();
@@ -227,22 +333,35 @@ export async function saveSetlistItems(
     specific_note?: string;
   }>
 ): Promise<void> {
+  const newItems: SetlistItem[] = items.map((it) => ({
+    id: `item-${setlistId}-${it.position}-${Math.random().toString(36).substring(2, 6)}`,
+    setlist_id: setlistId,
+    song_id: it.song_id,
+    position: it.position,
+    set_block: it.set_block || 'Set 1',
+    override_key: it.override_key || null,
+    specific_note: it.specific_note || '',
+    created_at: new Date().toISOString()
+  }));
+
   await db.transaction('rw', db.setlist_items, async () => {
     await db.setlist_items.where('setlist_id').equals(setlistId).delete();
-
-    for (const it of items) {
-      await db.setlist_items.add({
-        id: `item-${setlistId}-${it.position}-${Math.random().toString(36).substring(2, 6)}`,
-        setlist_id: setlistId,
-        song_id: it.song_id,
-        position: it.position,
-        set_block: it.set_block || 'Set 1',
-        override_key: it.override_key || null,
-        specific_note: it.specific_note || '',
-        created_at: new Date().toISOString()
-      });
+    for (const it of newItems) {
+      await db.setlist_items.add(it);
     }
   });
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('setlist_items').delete().eq('setlist_id', setlistId);
+      if (newItems.length > 0) {
+        const { error } = await supabase.from('setlist_items').insert(newItems);
+        if (error) console.error('Erro ao salvar itens no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Erro ao sincronizar itens do setlist no Supabase:', err);
+    }
+  }
 }
 
 // ==============================================================================
@@ -266,11 +385,28 @@ export async function saveSongNote(
     created_at: new Date().toISOString()
   };
   await db.song_notes.put(note);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('song_notes').upsert(note);
+    } catch (err) {
+      console.warn('Erro ao salvar nota no Supabase:', err);
+    }
+  }
+
   return id;
 }
 
 export async function deleteSongNote(noteId: string): Promise<void> {
   await db.song_notes.delete(noteId);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('song_notes').delete().eq('id', noteId);
+    } catch (err) {
+      console.warn('Erro ao deletar nota no Supabase:', err);
+    }
+  }
 }
 
 // ==============================================================================
@@ -278,11 +414,34 @@ export async function deleteSongNote(noteId: string): Promise<void> {
 // ==============================================================================
 
 export async function getAllProfiles(): Promise<MemberProfile[]> {
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at');
+      if (!error && data) {
+        for (const p of data) {
+          await db.profiles.put(p);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar perfis do Supabase:', err);
+    }
+  }
   return await db.profiles.toArray();
 }
 
 export async function saveProfile(profile: MemberProfile): Promise<void> {
   await db.profiles.put(profile);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('profiles').upsert(profile);
+    } catch (err) {
+      console.warn('Erro ao salvar perfil no Supabase:', err);
+    }
+  }
 }
 
 export async function updateUserStatus(
@@ -296,6 +455,17 @@ export async function updateUserStatus(
     approved_at: status === 'approved' ? new Date().toISOString() : null
   };
   await db.profiles.update(userId, updates);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+      if (error) {
+        console.error('Erro ao aprovar/bloquear usuário no Supabase:', error);
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar status do usuário no Supabase:', err);
+    }
+  }
 }
 
 export async function updateUserRole(
@@ -303,10 +473,26 @@ export async function updateUserRole(
   role: UserRole
 ): Promise<void> {
   await db.profiles.update(userId, { role });
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('profiles').update({ role }).eq('id', userId);
+    } catch (err) {
+      console.warn('Erro ao atualizar papel do usuário no Supabase:', err);
+    }
+  }
 }
 
 export async function deleteUser(userId: string): Promise<void> {
   await db.profiles.delete(userId);
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      await supabase.from('profiles').delete().eq('id', userId);
+    } catch (err) {
+      console.warn('Erro ao remover usuário no Supabase:', err);
+    }
+  }
 }
 
 // ==============================================================================

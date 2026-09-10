@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { seedDatabaseIfNeeded } from './db/seed';
-import { getActiveSetlist, getSetlistFullData, getSetlistById } from './db/database';
+import { getActiveSetlist, getSetlistFullData, getSetlistById, syncFromSupabase } from './db/database';
 import { StageView } from './components/stage/StageView';
 import { ManagerLayout } from './components/manager/ManagerLayout';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -51,6 +51,9 @@ export function App() {
     try {
       setLoading(true);
       await seedDatabaseIfNeeded();
+
+      // Sincroniza todas as alterações da nuvem (Supabase) para o cache local
+      await syncFromSupabase();
 
       let targetSetlist: Setlist | undefined;
       if (customSetlistId) {
