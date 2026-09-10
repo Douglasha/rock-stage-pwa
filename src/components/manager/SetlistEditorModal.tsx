@@ -7,7 +7,8 @@ import {
   ArrowUp,
   ArrowDown,
   Trash2,
-  Clock
+  Clock,
+  ListPlus
 } from 'lucide-react';
 import {
   getAllSongs,
@@ -16,6 +17,7 @@ import {
   getSetlistFullData,
   saveSetlistItems
 } from '../../db/database';
+import { SongMultiPickerModal } from './SongMultiPickerModal';
 import type { Setlist, Song } from '../../types';
 
 interface SetlistEditorModalProps {
@@ -48,6 +50,7 @@ export const SetlistEditorModal: React.FC<SetlistEditorModalProps> = ({
   const [items, setItems] = useState<SetlistItemDraft[]>([]);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [selectedSongToAdd, setSelectedSongToAdd] = useState<string>('');
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   useEffect(() => {
     const loadAll = async () => {
@@ -108,6 +111,24 @@ export const SetlistEditorModal: React.FC<SetlistEditorModalProps> = ({
         specific_note: ''
       }
     ]);
+  };
+
+  const handleAddMultipleSongs = (selectedSongs: Song[], targetBlock: string) => {
+    setItems((prev) => {
+      let currentPos = prev.length;
+      const newItems: SetlistItemDraft[] = selectedSongs.map((song) => {
+        currentPos += 1;
+        return {
+          song_id: song.id,
+          song,
+          position: currentPos,
+          set_block: targetBlock || 'Set 1',
+          override_key: '',
+          specific_note: ''
+        };
+      });
+      return [...prev, ...newItems];
+    });
   };
 
   const handleMoveUp = (index: number) => {
@@ -262,33 +283,55 @@ export const SetlistEditorModal: React.FC<SetlistEditorModalProps> = ({
             </div>
 
             {/* Seletor para adicionar música */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <select
-                value={selectedSongToAdd}
-                onChange={(e) => setSelectedSongToAdd(e.target.value)}
-                className="flex-1 sm:flex-initial px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-400"
-              >
-                {allSongs.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title} ({s.key}) - {s.artist}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={handleAddSong}
-                className="px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase text-xs rounded-lg flex items-center gap-1 flex-shrink-0 active:scale-95 transition"
+                onClick={() => setIsPickerOpen(true)}
+                className="flex-1 sm:flex-initial px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase text-xs rounded-lg flex items-center justify-center gap-1.5 shadow-lg shadow-yellow-500/20 active:scale-95 transition"
               >
-                <Plus className="w-4 h-4" /> Adicionar
+                <ListPlus className="w-4 h-4 stroke-[2.5]" />
+                <span>Selecionar Músicas (+ Múltiplas)</span>
               </button>
+
+              {/* Seletor rápido individual opcional */}
+              <div className="hidden md:flex items-center gap-1">
+                <select
+                  value={selectedSongToAdd}
+                  onChange={(e) => setSelectedSongToAdd(e.target.value)}
+                  className="max-w-[160px] px-2.5 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white focus:outline-none focus:border-yellow-400 truncate"
+                  title="Adicionar música individual"
+                >
+                  {allSongs.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} ({s.key})
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleAddSong}
+                  className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg active:scale-95 transition"
+                  title="Adicionar individualmente"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Lista de Músicas Ordenadas do Setlist */}
           <div className="space-y-2">
             {items.length === 0 ? (
-              <div className="py-10 text-center text-zinc-500 font-mono text-sm border border-dashed border-zinc-800 rounded-xl">
-                Nenhuma música neste repertório ainda. Selecione uma música acima para adicionar.
+              <div className="py-12 px-4 text-center text-zinc-400 font-mono text-sm border border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center gap-3">
+                <p>Nenhuma música neste repertório ainda.</p>
+                <button
+                  type="button"
+                  onClick={() => setIsPickerOpen(true)}
+                  className="px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black font-black uppercase text-xs rounded-lg flex items-center gap-2 shadow-lg shadow-yellow-500/20 active:scale-95 transition"
+                >
+                  <ListPlus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Selecionar Músicas da Biblioteca</span>
+                </button>
               </div>
             ) : (
               items.map((it, index) => (
@@ -402,6 +445,15 @@ export const SetlistEditorModal: React.FC<SetlistEditorModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Modal de Seleção Múltipla de Músicas */}
+      <SongMultiPickerModal
+        isOpen={isPickerOpen}
+        onClose={() => setIsPickerOpen(false)}
+        allSongs={allSongs}
+        existingSongIds={items.map((it) => it.song_id)}
+        onAddSongs={handleAddMultipleSongs}
+      />
     </div>
   );
 };
